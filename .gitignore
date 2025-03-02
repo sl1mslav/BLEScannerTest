@@ -17,8 +17,6 @@ local.properties
 /captures
 .externalNativeBuild
 .cxx
-local.properties
-
 # Log/OS Files
 *.log
 
@@ -30,7 +28,6 @@ captures/
 output.json
 
 # IntelliJ
-*.iml
 .idea/
 misc.xml
 deploymentTargetDropDown.xml
