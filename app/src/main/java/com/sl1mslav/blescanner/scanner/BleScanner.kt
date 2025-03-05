@@ -14,8 +14,6 @@ import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.os.Build
-import android.os.Handler
-import android.os.Looper
 import android.os.ParcelUuid
 import android.util.Log
 import androidx.core.content.ContextCompat
@@ -30,12 +28,12 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.util.UUID
-import kotlin.IllegalArgumentException
 import kotlin.math.abs
 
 class BleScanner(
@@ -72,6 +70,7 @@ class BleScanner(
     private val _devices = MutableStateFlow(emptyList<BleDevice>())
 
     private val _state = MutableStateFlow<BleScannerState>(BleScannerState.Initial)
+    val state = _state.asStateFlow()
 
     private var connectionState = ConnectionState.NOT_CONNECTED
 

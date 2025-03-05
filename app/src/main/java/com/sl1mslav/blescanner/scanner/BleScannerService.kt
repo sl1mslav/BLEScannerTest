@@ -9,14 +9,19 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ServiceCompat
-import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
-import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityState
 import com.sl1mslav.blescanner.notifications.buildBleServiceNotification
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.BLUETOOTH_OFF
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.CONNECTION_FAILED
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.INCORRECT_CONFIGURATION
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.LOCATION_OFF
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.NO_CONNECT_PERMISSION
+import com.sl1mslav.blescanner.scanner.model.BleScannerError.NO_SCAN_PERMISSION
+import com.sl1mslav.blescanner.scanner.model.BleScannerState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
@@ -29,9 +34,9 @@ class BleScannerService: Service() {
     // Будит телефон с интервалом в 15 минут
     private val wakeLockWorkManager = WakeLockWorkManager(this)
 
-    init {
-        observeBluetoothAvailability()
-    }
+    // Сканнер BLE устройств
+    private val bleScanner = BleScanner(context = this)
+    val bleScannerState = bleScanner.state
 
     // ----- Для того, чтобы UI мог вызывать публичные методы нашего сервиса ----- //
     // todo узнать, нужно ли вообще привязывать сервис.
@@ -87,11 +92,13 @@ class BleScannerService: Service() {
         Log.d(TAG, "onCreate")
         super.onCreate()
         startWakeLockWorker()
+        observeBluetoothScannerState()
+        bleScanner.start(emptyList()) // todo actual devices
     }
 
     /**
      * Перезапускает Bluetooth сканнер, если с прошлого сигнала воркера прошло больше 5 минут
-     * todo уточнить почему Рома сделал именно так (что это трекает)
+     * todo попробовать потом с обычным таймером вместо отслеживания изменений воркера
      */
     @OptIn(FlowPreview::class)
     private fun startWakeLockWorker() {
@@ -101,7 +108,7 @@ class BleScannerService: Service() {
             .debounce(5.minutes)
             .onEach {
                 Log.d(TAG, "startWakeLockWorker: receive workInfo $it")
-                // todo bluetoothScanner?.restart()
+                bleScanner.restart()
             }.launchIn(scannerScope) // убьётся с сервисом, не нужно проверять isAlive
     }
 
@@ -111,38 +118,57 @@ class BleScannerService: Service() {
 
 
 
-    // -------------------- Реакции на вкл/выкл блютуза и гео --------------------- //
+    // -------------------- Реакции на состояние сканнера --------------------- //
 
-    private fun observeBluetoothAvailability() {
-        BleAvailabilityObserver
-            .getInstance(this)
-            .bleAvailability
-            .onEach {
-                displayBleAvailabilityNotification(it)
-                // todo bluetooth scanner реакция
-            }.launchIn(scannerScope)
+    private fun observeBluetoothScannerState() {
+        bleScannerState.onEach(::handleScannerState).launchIn(scannerScope)
     }
 
-    private fun displayBleAvailabilityNotification(state: BleAvailabilityState) {
+    private fun handleScannerState(state: BleScannerState) {
         val notificationManager = getSystemService(NotificationManager::class.java)
         val notificationTitle: String
         val notificationText: String
-        when {
-            !state.isLocationEnabled && !state.isBluetoothEnabled -> {
-                notificationTitle = "Проблема в работе сервиса"
-                notificationText = "Для работы сервиса нужно включить блютуз и геолокацию"
+        when (state) {
+            BleScannerState.Initial -> {
+                notificationTitle = "Запускаем сканнер"
+                notificationText = "Скоро он начнёт считывать сигналы"
             }
-            !state.isLocationEnabled -> {
-                notificationTitle = "Проблема в работе сервиса"
-                notificationText = "Для работы сервиса нужно включить геолокацию"
+            BleScannerState.Scanning -> {
+                notificationTitle = "Сканируем"
+                notificationText = "Поскорее бы открыть что-нибудь"
             }
-            !state.isBluetoothEnabled -> {
-                notificationTitle = "Проблема в работе сервиса"
-                notificationText = "Для работы сервиса нужно включить блютуз"
+            BleScannerState.Connected -> {
+                notificationTitle = "Успешно подключились"
+                notificationText = "Попробуем отослать сигнал открытия"
             }
-            else -> {
-                notificationTitle = "Всё включено"
-                notificationText = "Сервис запущен"
+            is BleScannerState.Failed -> {
+                notificationTitle = "Произошла ошибка"
+                when {
+                    state.errors.containsAll(listOf(BLUETOOTH_OFF, LOCATION_OFF)) -> {
+                        notificationText = "Необходимо включить геолокацию и Bluetooth"
+                    }
+                    BLUETOOTH_OFF in state.errors -> {
+                        notificationText = "Необходимо включить Bluetooth"
+                    }
+                    LOCATION_OFF in state.errors -> {
+                        notificationText = "Необходимо включить геолокацию"
+                    }
+                    INCORRECT_CONFIGURATION in state.errors -> { // todo порядок
+                        notificationText = "Похоже, скан был начат с неправильными данными"
+                    }
+                    CONNECTION_FAILED in state.errors -> {
+                        notificationText = "Ошибка соединения во время скана/подключения к устройствам"
+                    }
+                    NO_SCAN_PERMISSION in state.errors -> {
+                        notificationText = "Нет разрешения на сканирование"
+                    }
+                    NO_CONNECT_PERMISSION in state.errors -> {
+                        notificationText = "Нет разрешения на подключение к Bluetooth"
+                    }
+                    else -> {
+                        notificationText = "Непредвиденная ошибка"
+                    }
+                }
             }
         }
         notificationManager.notify(
@@ -166,8 +192,9 @@ class BleScannerService: Service() {
     override fun onDestroy() {
         Log.d(TAG, "onDestroy")
         super.onDestroy()
-        scannerScope.cancel()
+        scannerScope.coroutineContext.cancelChildren()
         wakeLockWorkManager.stop()
+        bleScanner.release()
     }
 
     // ---------------------------------------------------------------------------- //
