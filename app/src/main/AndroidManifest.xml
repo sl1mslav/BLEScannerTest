@@ -2,11 +2,15 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- todo обязательно потом проверить, чтобы были все разрешения из main и AuthModule от Ромы -->
+
+    <!-- Internet -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
     <!-- Used for LE scanner FGS -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
 
     <!-- Waking the device up for scanning -->
-    <!-- todo этого пермишена не было у Ромы. Как работало? -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
 
     <!-- React to device boot and restart scanning FGS if needed -->
