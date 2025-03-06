@@ -8,6 +8,7 @@
     <uses-permission android:name="android.permission.INTERNET"/>
 
     <!-- Used for LE scanner FGS -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE"/>
 
     <!-- Waking the device up for scanning -->
@@ -28,7 +29,9 @@
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
     <uses-permission android:name="android.permission.BLUETOOTH_SCAN" />
 
-    <!-- Apparently scanning for devices doesn't work without this one (lvl: need to request) -->
+    <!-- Apparently scanning for devices doesn't work without location (lvl: need to request) -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
 
     <application
