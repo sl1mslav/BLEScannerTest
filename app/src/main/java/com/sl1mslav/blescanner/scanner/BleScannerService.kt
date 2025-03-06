@@ -35,8 +35,8 @@ class BleScannerService: Service() {
     private val wakeLockWorkManager = WakeLockWorkManager(this)
 
     // Сканнер BLE устройств
-    private val bleScanner = BleScanner(context = this)
-    val bleScannerState = bleScanner.state
+    private val bleScanner by lazy { BleScanner(context = this) }
+    val bleScannerState get() = bleScanner.state
 
     // ----- Для того, чтобы UI мог вызывать публичные методы нашего сервиса ----- //
     // todo узнать, нужно ли вообще привязывать сервис.
@@ -65,20 +65,32 @@ class BleScannerService: Service() {
 
     private fun startServiceAsFGS() {
         Log.d(TAG, "startServiceAsFGS")
-        ServiceCompat.startForeground(
-            this,
-            SERVICE_NOTIFICATION_ID,
-            buildBleServiceNotification(
-                context = this,
-                title = "Всё включено",
-                text = "Сервис запущен"
-            ),
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-                FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
-            } else {
-                FOREGROUND_SERVICE_TYPE_DEFAULT
-            }
-        )
+        try {
+            ServiceCompat.startForeground(
+                this,
+                SERVICE_NOTIFICATION_ID,
+                buildBleServiceNotification(
+                    context = this,
+                    title = "Всё включено",
+                    text = "Сервис запущен"
+                ),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                    FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
+                } else {
+                    FOREGROUND_SERVICE_TYPE_DEFAULT
+                }
+            )
+        } catch (e: SecurityException) {
+            val notificationManager = getSystemService(NotificationManager::class.java)
+            notificationManager.notify(
+                SERVICE_NOTIFICATION_ID,
+                buildBleServiceNotification(
+                    this,
+                    "Проблемка...",
+                    "Зачем ты вырубил разрешения? Нормально же общались?"
+                )
+            )
+        }
     }
     // ---------------------------------------------------------------------------- //
 
