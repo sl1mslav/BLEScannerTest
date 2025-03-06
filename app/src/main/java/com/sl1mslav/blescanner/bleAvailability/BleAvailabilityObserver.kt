@@ -88,7 +88,10 @@ class BleAvailabilityObserver private constructor(private val context: Context) 
     }
 
     private fun stopSystemBroadcastListener() {
-        context.unregisterReceiver(receiver)
+        if (receiver.debugUnregister)
+        try {
+            context.unregisterReceiver(receiver)
+        } catch (_: IllegalArgumentException) {}
     }
 
 
