@@ -5,6 +5,7 @@ import android.os.Build
 
 fun collectRequiredPermissions(): List<String> {
     return buildList {
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
         add(Manifest.permission.ACCESS_FINE_LOCATION)
 
         // Android 10
