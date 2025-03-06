@@ -111,7 +111,7 @@ class MainActivity : ComponentActivity() {
                 permission.manifestName
             )
         ) {
-            Toast.makeText(this, "Извини бро. Но ты еблан.", Toast.LENGTH_SHORT)
+            Toast.makeText(this, "Вруби вручную, мне лень делать алерт <3", Toast.LENGTH_SHORT).show()
             return
         }
 
