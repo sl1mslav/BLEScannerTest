@@ -100,6 +100,7 @@ class BleScanner(
                 _state.update { it.failed(withError = BleScannerError.CONNECTION_FAILED) }
                 try {
                     bluetoothGatt?.close()
+                    startScanningForDevices(_devices.value)
                 } catch (e: SecurityException) {
                     _state.update { it.failed(withError = BleScannerError.NO_CONNECT_PERMISSION) }
                 }
@@ -165,6 +166,7 @@ class BleScanner(
                         _state.update {
                             it.failed(withError = BleScannerError.CONNECTION_FAILED)
                         }
+                        startScanningForDevices(_devices.value)
                     }
                 }
 

@@ -3,29 +3,39 @@ package com.sl1mslav.blescanner
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
-import android.util.Log
+import android.provider.Settings
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.activity.viewModels
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import androidx.lifecycle.Lifecycle
-import androidx.lifecycle.lifecycleScope
-import androidx.lifecycle.repeatOnLifecycle
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
+import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
 import com.sl1mslav.blescanner.scanner.BleScannerService
+import com.sl1mslav.blescanner.screens.BlePermission
+import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
-import kotlinx.coroutines.launch
+
 
 class MainActivity : ComponentActivity() {
+
+    private val permissionRequester = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) {
+        viewModel.onNewPermissions(getPermissionsState())
+    }
 
     private var scannerService: BleScannerService? = null
     private var isServiceBound: Boolean = false
@@ -33,13 +43,21 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as BleScannerService.LeScannerBinder
             scannerService = binder.getService()
-            isServiceBound = true
+            viewModel.onChangeServiceState(isRunning = true)
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
-            isServiceBound = false
+            viewModel.onChangeServiceState(isRunning = false)
             scannerService = null // todo подумать нужно ли (в доке нет)
         }
+    }
+
+    private val viewModel by viewModels<MainActivityViewModel> {
+        MainActivityViewModel.Factory(
+            availabilityTracker = BleAvailabilityObserver.getInstance(this),
+            isServiceRunning = isServiceBound,
+            initialPermissions = getPermissionsState()
+        )
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -48,23 +66,26 @@ class MainActivity : ComponentActivity() {
         setContent {
             BLEscannerTheme {
                 Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    val state by viewModel.state.collectAsState()
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
+                        state = state,
+                        onEnableBluetooth = {
+                            openBluetoothSettings()
+                        },
+                        onEnableLocation = {
+                            openLocationSettings()
+                        },
+                        onCheckPermission = ::onCheckPermission,
                         onButtonClick = {
-                            startBleScannerService()
+                            if (state.isServiceRunning) {
+                                stopBleScannerService()
+                            } else {
+                                startBleScannerService()
+                            }
                         }
                     )
                 }
-            }
-        }
-        lifecycleScope.launch {
-            repeatOnLifecycle(Lifecycle.State.STARTED) {
-                BleAvailabilityObserver
-                    .getInstance(this@MainActivity)
-                    .bleAvailability
-                    .collect {
-                        Log.d("TAG", it.toString())
-                    }
             }
         }
     }
@@ -74,9 +95,50 @@ class MainActivity : ComponentActivity() {
         bindToRunningService()
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.onNewPermissions(getPermissionsState())
+    }
+
     override fun onStop() {
         super.onStop()
-        unbindService()
+        unbindService(serviceConnection)
+    }
+
+    private fun onCheckPermission(permission: BlePermission) {
+        if (ActivityCompat.shouldShowRequestPermissionRationale(
+                this,
+                permission.manifestName
+            )
+        ) {
+            Toast.makeText(this, "Извини бро. Но ты еблан.", Toast.LENGTH_SHORT)
+            return
+        }
+
+        permissionRequester.launch(permission.manifestName)
+    }
+
+    private fun getPermissionsState(): List<BlePermission> {
+        return collectRequiredPermissions().map {
+            BlePermission(
+                manifestName = it,
+                readableName = it,
+                isGranted = ContextCompat.checkSelfPermission(
+                    this,
+                    it
+                ) == PackageManager.PERMISSION_GRANTED
+            )
+        }
+    }
+
+    private fun openLocationSettings() {
+        val intent = Intent(Settings.ACTION_LOCATION_SOURCE_SETTINGS)
+        startActivity(intent)
+    }
+
+    private fun openBluetoothSettings() {
+        val intent = Intent(Settings.ACTION_BLUETOOTH_SETTINGS)
+        startActivity(intent)
     }
 
     private fun startBleScannerService() {
@@ -85,6 +147,15 @@ class MainActivity : ComponentActivity() {
             BleScannerService::class.java
         ).let { intent ->
             startService(intent)
+        }
+    }
+
+    private fun stopBleScannerService() {
+        Intent(
+            this,
+            BleScannerService::class.java
+        ).let { intent ->
+            stopService(intent)
         }
     }
 
@@ -101,31 +172,7 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun unbindService() {
-        unbindService(serviceConnection)
-        isServiceBound = false
-    }
-
     companion object {
         private const val BIND_SERVICE_IF_RUNNING = 0
     }
-}
-
-@Composable
-fun MainScreen(
-    modifier: Modifier = Modifier,
-    onButtonClick: () -> Unit
-) {
-    Button(
-        modifier = modifier,
-        onClick = onButtonClick
-    ) {
-        Text(text = "Start FGS")
-    }
-}
-
-@Preview
-@Composable
-fun MainScreenPreview() {
-    MainScreen(onButtonClick = {})
 }
