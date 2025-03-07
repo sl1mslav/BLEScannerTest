@@ -69,6 +69,9 @@ dependencies {
     // WorkManager
     implementation(libs.androidx.workmanager)
 
+    // Gson
+    implementation("com.google.code.gson:gson:2.12.1")
+
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }

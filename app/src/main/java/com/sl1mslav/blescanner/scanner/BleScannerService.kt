@@ -9,7 +9,9 @@ import android.os.Build
 import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ServiceCompat
+import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
 import com.sl1mslav.blescanner.notifications.buildBleServiceNotification
+import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.scanner.model.BleScannerError.BLUETOOTH_OFF
 import com.sl1mslav.blescanner.scanner.model.BleScannerError.CONNECTION_FAILED
 import com.sl1mslav.blescanner.scanner.model.BleScannerError.INCORRECT_CONFIGURATION
@@ -38,8 +40,10 @@ class BleScannerService: Service() {
     private val bleScanner by lazy { BleScanner(context = this) }
     val bleScannerState get() = bleScanner.state
 
+    // Кэширование устройств
+    private val deviceCachingService by lazy { DevicesPrefsCachingService(context = this) }
+
     // ----- Для того, чтобы UI мог вызывать публичные методы нашего сервиса ----- //
-    // todo узнать, нужно ли вообще привязывать сервис.
     private val binder = LeScannerBinder()
 
     inner class LeScannerBinder: Binder() {
@@ -122,6 +126,18 @@ class BleScannerService: Service() {
                 Log.d(TAG, "startWakeLockWorker: receive workInfo $it")
                 bleScanner.restart()
             }.launchIn(scannerScope) // убьётся с сервисом, не нужно проверять isAlive
+    }
+
+    fun startScanningForDevices(
+        devices: List<BleDevice>,
+        rssi: Int
+    ) {
+        deviceCachingService.saveDevices(devices)
+
+    }
+
+    private fun scanForKnownDevices() {
+
     }
 
     // ---------------------------------------------------------------------------- //
