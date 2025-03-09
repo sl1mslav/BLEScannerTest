@@ -44,6 +44,12 @@ class MainActivity : ComponentActivity() {
             val binder = service as BleScannerService.LeScannerBinder
             scannerService = binder.getService()
             viewModel.onChangeServiceState(isRunning = true)
+            // todo запрос на сервер и старт с конкретными девайсами
+            /*scannerService?.let {
+                it.startScanningForDevices(
+
+                )
+            }*/
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
@@ -148,6 +154,7 @@ class MainActivity : ComponentActivity() {
         ).let { intent ->
             startService(intent)
         }
+        bindToRunningService()
     }
 
     private fun stopBleScannerService() {

@@ -25,15 +25,16 @@ class DevicesPrefsCachingService(context: Context) {
     }
 
     fun getPreferredRssi(): Int {
-
+        return prefs.getInt(RSSI_KEY, 0)
     }
 
-    fun savePreferredRssi(): Int {
-
+    fun savePreferredRssi(rssi: Int) {
+        prefs.edit().putInt(RSSI_KEY, rssi).apply()
     }
 
     companion object {
         private const val DEVICES_PREFS_NAME = "devices_preferences"
         private const val DEVICES_KEY = "devices"
+        private const val RSSI_KEY = "devices"
     }
 }

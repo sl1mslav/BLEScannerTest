@@ -109,7 +109,7 @@ class BleScannerService: Service() {
         super.onCreate()
         startWakeLockWorker()
         observeBluetoothScannerState()
-        bleScanner.start(emptyList()) // todo actual devices
+        scanForKnownDevices()
     }
 
     /**
@@ -133,11 +133,13 @@ class BleScannerService: Service() {
         rssi: Int
     ) {
         deviceCachingService.saveDevices(devices)
-
+        deviceCachingService.savePreferredRssi(rssi)
+        scanForKnownDevices()
     }
 
     private fun scanForKnownDevices() {
-
+        bleScanner.targetRssi = deviceCachingService.getPreferredRssi()
+        bleScanner.start(deviceCachingService.getSavedDevices())
     }
 
     // ---------------------------------------------------------------------------- //
