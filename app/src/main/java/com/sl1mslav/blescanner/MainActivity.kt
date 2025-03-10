@@ -24,6 +24,7 @@ import androidx.core.content.ContextCompat
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
 import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
 import com.sl1mslav.blescanner.scanner.BleScannerService
+import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
@@ -44,12 +45,17 @@ class MainActivity : ComponentActivity() {
             val binder = service as BleScannerService.LeScannerBinder
             scannerService = binder.getService()
             viewModel.onChangeServiceState(isRunning = true)
-            // todo запрос на сервер и старт с конкретными девайсами
-            /*scannerService?.let {
-                it.startScanningForDevices(
-
-                )
-            }*/
+            val key = "2743652"
+            val bleCode = "pcjhp6060px38f9b"
+            val hardCodedDevice = BleDevice(
+                uuid = "", // todo уточнить
+                keyId = 1,
+                rssi = 0,
+                charData = byteArrayOf(),
+                key = "g$key".toByteArray(),
+                bleCode = bleCode.toByteArray()
+            )
+            scannerService?.startScanningForDevices(listOf(hardCodedDevice), 50)
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
