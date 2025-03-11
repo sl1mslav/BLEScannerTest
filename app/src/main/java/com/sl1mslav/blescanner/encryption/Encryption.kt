@@ -6,12 +6,12 @@ import javax.crypto.Cipher
 import javax.crypto.SecretKey
 import javax.crypto.spec.SecretKeySpec
 
-private val BYTE_ARRAY_PADDING = byteArrayOf(0, 0, 0, 0, 0, 0, 0, 0)
 private const val ALGORITHM_NAME = "AES"
 private const val ENCRYPTION_MODE = "$ALGORITHM_NAME/ECB/NoPadding"
+private const val CODE_BYTE_ARRAY_SIZE = 16
 
 fun encryptDeviceCommand(bleDevice: BleDevice): ByteArray {
-    val code = bleDevice.key + bleDevice.charData + BYTE_ARRAY_PADDING
+    val code = (bleDevice.charData + bleDevice.key).copyOf(newSize = CODE_BYTE_ARRAY_SIZE)
     val command = encryptAes128(
         plaintext = code,
         key = SecretKeySpec(

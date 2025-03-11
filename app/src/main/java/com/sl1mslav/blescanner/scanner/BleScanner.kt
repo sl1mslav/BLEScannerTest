@@ -78,6 +78,7 @@ class BleScanner(
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
             val serviceUuids = result?.scanRecord?.serviceUuids
+            Log.d(TAG, "onScanResult: $serviceUuids")
             serviceUuids?.forEach {
                 if (
                     connectionState == ConnectionState.NOT_CONNECTED &&
@@ -194,8 +195,11 @@ class BleScanner(
 
         override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
             super.onReadRemoteRssi(gatt, rssi, status)
+            Log.d(TAG, "onReadRemoteRssi: newRssi: $rssi")
             updateCurrentBleDevice(gatt) {
                 val newDevice = it.copy(rssi = rssi)
+                Log.d(TAG, "onReadRemoteRssi: set new device rssi: $rssi")
+                Log.d(TAG, "onReadRemoteRssi: new device connected: ${newDevice.isConnected}")
                 if (newDevice.rssi >= targetRssi && newDevice.isConnected) {
                     sendOpenSignal(newDevice)
                 }
