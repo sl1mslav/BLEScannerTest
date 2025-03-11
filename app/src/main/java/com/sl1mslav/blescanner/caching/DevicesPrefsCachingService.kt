@@ -35,6 +35,6 @@ class DevicesPrefsCachingService(context: Context) {
     companion object {
         private const val DEVICES_PREFS_NAME = "devices_preferences"
         private const val DEVICES_KEY = "devices"
-        private const val RSSI_KEY = "devices"
+        private const val RSSI_KEY = "rssi"
     }
 }
