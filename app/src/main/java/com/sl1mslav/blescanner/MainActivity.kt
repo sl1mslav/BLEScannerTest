@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
             val key = "2743652"
             val bleCode = "pcjhp6060px38f9b"
             val hardCodedDevice = BleDevice(
-                uuid = "", // todo уточнить
+                uuid = "13791bd9-b560-490a-801e-657bc2aab89b", // todo уточнить
                 keyId = 1,
                 rssi = 0,
                 charData = byteArrayOf(),
