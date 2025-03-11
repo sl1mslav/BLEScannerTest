@@ -114,7 +114,7 @@ class BleScanner(
             super.onConnectionStateChange(gatt, status, newState)
             // Обрабатываем неуспешное подключение
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                Log.d(TAG, "onConnectionStateChange: произошла ошибка, статус $status")
+                Log.d(TAG, "onConnectionStateChange: произошла ошибка, статус $status") // todo resolve status 8
 
                 updateCurrentBleDevice(gatt) {
                     it.copy(isConnected = false)
