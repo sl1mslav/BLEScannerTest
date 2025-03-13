@@ -1,6 +1,6 @@
 package com.sl1mslav.blescanner.scanner.model
 
-data class BleDevice( // todo naming: maybe rename to BleSkud or something
+data class BleDevice(
     val uuid: String,
     val rssi: Int,
     val isConnected: Boolean = false,

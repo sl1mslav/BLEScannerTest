@@ -48,7 +48,7 @@ class MainActivity : ComponentActivity() {
             val key = "2743652"
             val bleCode = "pcjhp6060px38f9b"
             val hardCodedDevice = BleDevice(
-                uuid = "f45389a8-d158-4964-b8ef-00000001ab60", // todo уточнить
+                uuid = "f45389a8-d158-4964-b8ef-00000001ab60",
                 keyId = 1,
                 rssi = 0,
                 charData = byteArrayOf(),
@@ -60,7 +60,7 @@ class MainActivity : ComponentActivity() {
 
         override fun onServiceDisconnected(className: ComponentName) {
             viewModel.onChangeServiceState(isRunning = false)
-            scannerService = null // todo подумать нужно ли (в доке нет)
+            scannerService = null
         }
     }
 
