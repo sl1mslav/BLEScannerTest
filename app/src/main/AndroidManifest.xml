@@ -2,8 +2,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
-    <!-- todo обязательно потом проверить, чтобы были все разрешения из main и AuthModule от Ромы -->
-
     <!-- Internet -->
     <uses-permission android:name="android.permission.INTERNET"/>
 
@@ -33,6 +31,9 @@
     <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
     <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
+
+    <!-- Battery optimizations -->
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS"/>
 
     <application
         android:allowBackup="true"
@@ -65,9 +66,10 @@
             android:directBootAware="true"
             android:enabled="true"
             android:exported="false">
-            <intent-filter android:priority="2147483647"> <!-- todo does this actually help? -->
+            <intent-filter android:priority="2147483647">
                 <action android:name="android.intent.action.BOOT_COMPLETED" />
-                <!-- todo quick boot poweron and similar intents? -->
+                <action android:name="android.intent.action.REBOOT" />
+                <action android:name="android.intent.action.QUICKBOOT_POWERON" />
             </intent-filter>
         </receiver>
     </application>
