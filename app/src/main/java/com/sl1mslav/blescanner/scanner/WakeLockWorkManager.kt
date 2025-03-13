@@ -42,7 +42,7 @@ class WakeLockWorkManager(
             val powerManager = applicationContext.getSystemService(PowerManager::class.java)
             val wakeLock = powerManager.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK,
-                WAKE_LOCK_TAG
+                WAKE_LOCK_TAG // LocationManagerService tag on HUAWEI not to get killed
             )
             wakeLock.acquire(WAKE_LOCK_TIMEOUT)
             Log.d(TAG, "doWork: successfuly acquired wakelock")
