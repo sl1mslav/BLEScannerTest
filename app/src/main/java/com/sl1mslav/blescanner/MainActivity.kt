@@ -1,7 +1,6 @@
 package com.sl1mslav.blescanner
 
 import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
-import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -94,7 +93,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
                         state = state.copy(
-                            needsAutoStart = AutoStartHelper.instance.needAutostart()
+                            needsAutoStart = AutoStartHelper.instance.needAutostart(this)
                         ),
                         onEnableBluetooth = {
                             openBluetoothSettings()

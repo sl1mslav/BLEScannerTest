@@ -74,18 +74,20 @@ class AutoStartHelper private constructor() {
     private val PACKAGE_NOKIA_COMPONENT =
         "com.evenwell.powersaving.g3.exception.PowerSaverExceptionActivity"
 
-    fun needAutostart(): Boolean {
+    fun needAutostart(context: Context): Boolean {
         val buildInfo = Build.BRAND.lowercase(Locale.getDefault())
-        return (buildInfo in listOf(
-            BRAND_ASUS,
-            BRAND_REDMI,
-            BRAND_XIAOMI,
-            BRAND_LETV,
-            BRAND_HONOR,
-            BRAND_OPPO,
-            BRAND_VIVO,
-            BRAND_NOKIA
-        ))
+        val buildMetaData = mapOf(
+            BRAND_ASUS to PACKAGE_ASUS_MAIN,
+            BRAND_REDMI to PACKAGE_XIAOMI_MAIN,
+            BRAND_XIAOMI to PACKAGE_XIAOMI_MAIN,
+            BRAND_LETV to PACKAGE_LETV_MAIN,
+            BRAND_HONOR to PACKAGE_HONOR_MAIN,
+            BRAND_OPPO to PACKAGE_OPPO_MAIN,
+            BRAND_VIVO to PACKAGE_VIVO_MAIN,
+            BRAND_NOKIA to PACKAGE_NOKIA_MAIN
+        )
+        val targetPackage = buildMetaData[buildInfo] ?: return false
+        return isPackageExists(context = context, targetPackage = targetPackage)
     }
 
     fun getAutoStartPermission(context: Context) {
