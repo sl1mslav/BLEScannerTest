@@ -88,7 +88,6 @@ class BleAvailabilityObserver private constructor(private val context: Context) 
     }
 
     private fun stopSystemBroadcastListener() {
-        if (receiver.debugUnregister)
         try {
             context.unregisterReceiver(receiver)
         } catch (_: IllegalArgumentException) {}
@@ -102,6 +101,6 @@ class BleAvailabilityObserver private constructor(private val context: Context) 
 
         fun getInstance(context: Context): BleAvailabilityObserver {
             return instance ?: BleAvailabilityObserver(context.applicationContext)
-        }
+        } // todo VOLATILE synchronized etc
     }
 }
