@@ -1,6 +1,8 @@
 package com.sl1mslav.blescanner.scanner
 
 import android.content.Context
+import android.os.Build.BRAND
+import android.os.Build.MANUFACTURER
 import android.os.PowerManager
 import android.util.Log
 import androidx.work.PeriodicWorkRequest
@@ -42,7 +44,7 @@ class WakeLockWorkManager(
             val powerManager = applicationContext.getSystemService(PowerManager::class.java)
             val wakeLock = powerManager.newWakeLock(
                 PowerManager.PARTIAL_WAKE_LOCK,
-                WAKE_LOCK_TAG // LocationManagerService tag on HUAWEI not to get killed
+                getWakeLockTag()
             )
             wakeLock.acquire(WAKE_LOCK_TIMEOUT)
             Log.d(TAG, "doWork: successfuly acquired wakelock")
@@ -51,6 +53,19 @@ class WakeLockWorkManager(
             Log.e(TAG, e.stackTraceToString())
             Result.failure()
         }
+
+        private fun getWakeLockTag(): String {
+            return if (isHuaweiDevice()) {
+                HUAWEI_WAKE_LOCK_TAG
+            } else {
+                WAKE_LOCK_TAG
+            }
+        }
+
+        private fun isHuaweiDevice(): Boolean {
+            return BRAND.contains(HUAWEI_NAME, ignoreCase = true) ||
+            MANUFACTURER.contains(HUAWEI_NAME, ignoreCase = true)
+        }
     }
 
     private companion object {
@@ -58,5 +73,9 @@ class WakeLockWorkManager(
         const val WAKE_LOCK_TAG = "BleScanner:WakeLockTag"
         const val WAKE_LOCK_TIMEOUT = 2_000L
         const val REPEAT_INTERVAL_MINUTES = 15L
+
+        // Huawei
+        const val HUAWEI_NAME = "huawei"
+        const val HUAWEI_WAKE_LOCK_TAG = "LocationManagerService"
     }
 }
