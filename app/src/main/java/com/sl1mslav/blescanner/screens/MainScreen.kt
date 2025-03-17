@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -22,8 +25,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
 
 @Composable
@@ -33,10 +39,12 @@ fun MainScreen(
     onEnableBluetooth: () -> Unit,
     onEnableLocation: () -> Unit,
     onCheckPermission: (BlePermission) -> Unit,
-    onButtonClick: () -> Unit
+    onCheckDozeMode: () -> Unit,
+    onClickAutoStart: () -> Unit,
+    onClickScannerButton: () -> Unit
 ) {
     Column(
-        modifier = modifier,
+        modifier = modifier.verticalScroll(rememberScrollState()),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Row(
@@ -93,19 +101,58 @@ fun MainScreen(
                 }
             )
         }
+        Text(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 32.dp, start = 16.dp, end = 16.dp, bottom = 16.dp),
+            text = "Опциональное | Людское",
+            fontSize = 14.sp,
+            fontWeight = FontWeight.Bold
+        )
+        LabelSwitch(
+            label = "Игнор оптимизации заряда",
+            isChecked = state.ignoresDozeMode,
+            onCheckedChange = { isChecked ->
+                if (isChecked) {
+                    onCheckDozeMode()
+                }
+            }
+        )
+        if (state.needsAutoStart) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .defaultMinSize(minHeight = 45.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    modifier = Modifier.weight(1f),
+                    text = "Автозагрузка приложения\n(не можем знать, вкл или выкл)",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.inverseSurface
+                )
+                TextButton(onClick = onClickAutoStart) {
+                    Text(text = "Включить")
+                }
+            }
+        }
+        Spacer(modifier = Modifier.height(32.dp))
         Button(
-            onClick = onButtonClick,
+            onClick = onClickScannerButton,
             enabled = state.isServiceRunning || (state.isLocationEnabled &&
                 state.isBluetoothEnabled &&
                 state.permissions.all { it.isGranted })
         ) {
             val text = if (state.isServiceRunning) {
-                "Stop FGS"
+                "Остановить сканнер"
             } else {
-                "Start FGS"
+                "Запустить сканнер"
             }
             Text(text = text)
         }
+        Spacer(modifier = Modifier.height(10000.dp))
+        Text(text = "Нахуй ты до сюда долистал?")
     }
 }
 
@@ -123,13 +170,12 @@ private fun LabelSwitch(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
+            modifier = Modifier.weight(1f),
             text = label,
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.inverseSurface
         )
-        Spacer(
-            modifier = Modifier.weight(1f)
-        )
+        Spacer(modifier = Modifier.width(16.dp))
         Switch(
             colors = SwitchDefaults.colors(
                 uncheckedBorderColor = Color.Transparent
@@ -149,11 +195,11 @@ private fun MainScreenPreview() {
             modifier = Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colorScheme.background),
-            onButtonClick = {},
+            onClickScannerButton = {},
             state = MainScreenState(
                 isBluetoothEnabled = false,
                 isLocationEnabled = false,
-                isServiceRunning = true,
+                isServiceRunning = false,
                 permissions = listOf(
                     BlePermission(
                         manifestName = Manifest.permission.POST_NOTIFICATIONS,
@@ -165,11 +211,15 @@ private fun MainScreenPreview() {
                         readableName = "Локация в фоне",
                         isGranted = false
                     )
-                )
+                ),
+                ignoresDozeMode = false,
+                needsAutoStart = true
             ),
             onCheckPermission = {},
             onEnableBluetooth = {},
-            onEnableLocation = {}
+            onEnableLocation = {},
+            onCheckDozeMode = {},
+            onClickAutoStart = {}
         )
     }
 }

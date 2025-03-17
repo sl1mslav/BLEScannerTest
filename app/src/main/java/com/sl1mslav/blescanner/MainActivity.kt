@@ -1,12 +1,16 @@
 package com.sl1mslav.blescanner
 
+import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
-import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
 import android.provider.Settings
+import android.provider.Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -20,8 +24,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
-import androidx.core.content.ContextCompat
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
+import com.sl1mslav.blescanner.blePermissions.AutoStartHelper
 import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
 import com.sl1mslav.blescanner.scanner.BleScannerService
 import com.sl1mslav.blescanner.scanner.model.BleDevice
@@ -34,6 +38,12 @@ class MainActivity : ComponentActivity() {
 
     private val permissionRequester = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
+    ) {
+        viewModel.onNewPermissions(getPermissionsState())
+    }
+
+    private val multiplePermissionRequester = registerForActivityResult(
+        ActivityResultContracts.RequestMultiplePermissions()
     ) {
         viewModel.onNewPermissions(getPermissionsState())
     }
@@ -68,7 +78,8 @@ class MainActivity : ComponentActivity() {
         MainActivityViewModel.Factory(
             availabilityTracker = BleAvailabilityObserver.getInstance(this),
             isServiceRunning = isServiceBound,
-            initialPermissions = getPermissionsState()
+            initialPermissions = getPermissionsState(),
+            ignoresDozeMode = isIgnoringDozeMode()
         )
     }
 
@@ -81,7 +92,9 @@ class MainActivity : ComponentActivity() {
                     val state by viewModel.state.collectAsState()
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
-                        state = state,
+                        state = state.copy(
+                            needsAutoStart = AutoStartHelper.instance.needAutostart()
+                        ),
                         onEnableBluetooth = {
                             openBluetoothSettings()
                         },
@@ -89,12 +102,18 @@ class MainActivity : ComponentActivity() {
                             openLocationSettings()
                         },
                         onCheckPermission = ::onCheckPermission,
-                        onButtonClick = {
+                        onClickScannerButton = {
                             if (state.isServiceRunning) {
                                 stopBleScannerService()
                             } else {
                                 startBleScannerService()
                             }
+                        },
+                        onCheckDozeMode = {
+                            requestToIgnoreDoze()
+                        },
+                        onClickAutoStart = {
+                            AutoStartHelper.instance.getAutoStartPermission(this)
                         }
                     )
                 }
@@ -110,6 +129,7 @@ class MainActivity : ComponentActivity() {
     override fun onResume() {
         super.onResume()
         viewModel.onNewPermissions(getPermissionsState())
+        viewModel.onChangeDozeBehavior(isIgnoringDozeMode())
     }
 
     override fun onStop() {
@@ -117,7 +137,15 @@ class MainActivity : ComponentActivity() {
         unbindService(serviceConnection)
     }
 
+
     private fun onCheckPermission(permission: BlePermission) {
+        if (permission.manifestName == ACCESS_BACKGROUND_LOCATION) {
+            multiplePermissionRequester.launch(
+                arrayOf(ACCESS_FINE_LOCATION, ACCESS_BACKGROUND_LOCATION)
+            )
+            return
+        }
+
         if (ActivityCompat.shouldShowRequestPermissionRationale(
                 this,
                 permission.manifestName
@@ -131,16 +159,18 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun getPermissionsState(): List<BlePermission> {
-        return collectRequiredPermissions().map {
-            BlePermission(
-                manifestName = it,
-                readableName = it,
-                isGranted = ContextCompat.checkSelfPermission(
-                    this,
-                    it
-                ) == PackageManager.PERMISSION_GRANTED
-            )
-        }
+        return collectRequiredPermissions(this@MainActivity)
+    }
+
+    private fun isIgnoringDozeMode(): Boolean {
+        return getSystemService(PowerManager::class.java).isIgnoringBatteryOptimizations(packageName)
+    }
+
+    private fun requestToIgnoreDoze() {
+        val intent = Intent()
+        intent.action = ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS
+        intent.data = Uri.parse("package:$packageName")
+        startActivity(intent)
     }
 
     private fun openLocationSettings() {

@@ -1,37 +1,86 @@
 package com.sl1mslav.blescanner.blePermissions
 
 import android.Manifest
+import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
+import android.Manifest.permission.ACCESS_COARSE_LOCATION
+import android.Manifest.permission.ACCESS_FINE_LOCATION
+import android.Manifest.permission.BLUETOOTH_ADVERTISE
+import android.Manifest.permission.BLUETOOTH_CONNECT
+import android.Manifest.permission.BLUETOOTH_SCAN
+import android.Manifest.permission.POST_NOTIFICATIONS
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
+import androidx.core.content.ContextCompat
+import com.sl1mslav.blescanner.screens.BlePermission
 
-fun collectRequiredPermissions(): List<String> {
+fun collectRequiredPermissions(context: Context): List<BlePermission> {
     return buildList {
-        add(Manifest.permission.ACCESS_COARSE_LOCATION)
-        add(Manifest.permission.ACCESS_FINE_LOCATION)
+        addAll(
+            listOf(
+                BlePermission(
+                    manifestName = ACCESS_COARSE_LOCATION,
+                    readableName = "Приблизительное местоположение",
+                    isGranted = false
+                ),
+                BlePermission(
+                    manifestName = ACCESS_FINE_LOCATION,
+                    readableName = "Точное местоположение",
+                    isGranted = false
+                )
+            )
+        )
 
         // Android 10
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            add(Manifest.permission.ACCESS_BACKGROUND_LOCATION)
+            add(
+                BlePermission(
+                    manifestName = ACCESS_BACKGROUND_LOCATION,
+                    readableName = "Местоположение в фоне",
+                    isGranted = false
+                )
+            )
         }
 
         // Android 12
-        if (Build.VERSION.SDK_INT >=  Build.VERSION_CODES.S) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             addAll(
                 listOf(
-                    Manifest.permission.BLUETOOTH_CONNECT,
-                    Manifest.permission.BLUETOOTH_ADVERTISE,
-                    Manifest.permission.BLUETOOTH_SCAN
+                    BlePermission(
+                        manifestName = BLUETOOTH_CONNECT,
+                        readableName = "Bluetooth: подключение",
+                        isGranted = false
+                    ),
+                    BlePermission(
+                        manifestName = BLUETOOTH_ADVERTISE,
+                        readableName = "Bluetooth: вещание",
+                        isGranted = false
+                    ),
+                    BlePermission(
+                        manifestName = BLUETOOTH_SCAN,
+                        readableName = "Bluetooth: сканирование",
+                        isGranted = false
+                    )
                 )
             )
         }
 
         // Android 13
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            add(Manifest.permission.POST_NOTIFICATIONS)
+            add(
+                BlePermission(
+                    manifestName = POST_NOTIFICATIONS,
+                    readableName = "Уведомления",
+                    isGranted = false
+                )
+            )
         }
-
-        // Android 14
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-            add(Manifest.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE)
-        }
+    }.map {
+        it.copy(
+            isGranted = ContextCompat.checkSelfPermission(
+                context,
+                it.manifestName
+            ) == PackageManager.PERMISSION_GRANTED
+        )
     }
 }

@@ -14,22 +14,27 @@ import kotlinx.coroutines.flow.stateIn
 class MainActivityViewModel(
     availabilityTracker: BleAvailabilityObserver,
     isServiceRunningInitial: Boolean,
-    initialPermissions: List<BlePermission>
+    initialPermissions: List<BlePermission>,
+    ignoresDozeModeInitial: Boolean
 ) : ViewModel() {
     private val permissions: MutableStateFlow<List<BlePermission>> = MutableStateFlow(emptyList())
     private val isServiceRunning: MutableStateFlow<Boolean> =
         MutableStateFlow(isServiceRunningInitial)
+    private val ignoresDozeMode: MutableStateFlow<Boolean> = MutableStateFlow(ignoresDozeModeInitial)
 
     val state = combine(
         availabilityTracker.bleAvailability,
         permissions,
-        isServiceRunning
-    ) { bleAvailability, permissions, isServiceRunning ->
+        isServiceRunning,
+        ignoresDozeMode
+    ) { bleAvailability, permissions, isServiceRunning, ignoresDozeMode ->
         MainScreenState(
             isBluetoothEnabled = bleAvailability.isBluetoothEnabled,
             isLocationEnabled = bleAvailability.isLocationEnabled,
             permissions = permissions,
-            isServiceRunning = isServiceRunning
+            isServiceRunning = isServiceRunning,
+            ignoresDozeMode = ignoresDozeMode,
+            needsAutoStart = false
         )
     }.stateIn(
         scope = viewModelScope,
@@ -38,7 +43,9 @@ class MainActivityViewModel(
             isBluetoothEnabled = availabilityTracker.bleAvailability.value.isBluetoothEnabled,
             isLocationEnabled = availabilityTracker.bleAvailability.value.isLocationEnabled,
             permissions = initialPermissions,
-            isServiceRunning = isServiceRunningInitial
+            isServiceRunning = isServiceRunningInitial,
+            ignoresDozeMode = ignoresDozeModeInitial,
+            needsAutoStart = false
         )
     )
 
@@ -50,17 +57,23 @@ class MainActivityViewModel(
         permissions.value = newPermissions
     }
 
+    fun onChangeDozeBehavior(isIgnoreEnabled: Boolean) {
+        ignoresDozeMode.value = isIgnoreEnabled
+    }
+
     class Factory(
         private val availabilityTracker: BleAvailabilityObserver,
         private val isServiceRunning: Boolean,
-        private val initialPermissions: List<BlePermission>
+        private val initialPermissions: List<BlePermission>,
+        private val ignoresDozeMode: Boolean
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             return MainActivityViewModel(
                 availabilityTracker,
                 isServiceRunning,
-                initialPermissions
+                initialPermissions,
+                ignoresDozeMode
             ) as T
         }
     }
