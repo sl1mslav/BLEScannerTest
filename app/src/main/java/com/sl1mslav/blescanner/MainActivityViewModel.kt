@@ -4,12 +4,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
+import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreenState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
+import kotlin.math.abs
 
 class MainActivityViewModel(
     availabilityTracker: BleAvailabilityObserver,
@@ -22,19 +25,23 @@ class MainActivityViewModel(
         MutableStateFlow(isServiceRunningInitial)
     private val ignoresDozeMode: MutableStateFlow<Boolean> = MutableStateFlow(ignoresDozeModeInitial)
 
+    private val rssi = MutableStateFlow(abs(BleScanner.DEFAULT_TARGET_RSSI))
+
     val state = combine(
         availabilityTracker.bleAvailability,
         permissions,
         isServiceRunning,
-        ignoresDozeMode
-    ) { bleAvailability, permissions, isServiceRunning, ignoresDozeMode ->
+        ignoresDozeMode,
+        rssi
+    ) { bleAvailability, permissions, isServiceRunning, ignoresDozeMode, rssi ->
         MainScreenState(
             isBluetoothEnabled = bleAvailability.isBluetoothEnabled,
             isLocationEnabled = bleAvailability.isLocationEnabled,
             permissions = permissions,
             isServiceRunning = isServiceRunning,
             ignoresDozeMode = ignoresDozeMode,
-            needsAutoStart = false
+            needsAutoStart = false,
+            currentRssi = rssi
         )
     }.stateIn(
         scope = viewModelScope,
@@ -45,9 +52,14 @@ class MainActivityViewModel(
             permissions = initialPermissions,
             isServiceRunning = isServiceRunningInitial,
             ignoresDozeMode = ignoresDozeModeInitial,
-            needsAutoStart = false
+            needsAutoStart = false,
+            currentRssi = abs(BleScanner.DEFAULT_TARGET_RSSI)
         )
     )
+
+    fun onNewRssi(newRssi: Int) {
+        rssi.update { abs(newRssi) }
+    }
 
     fun onChangeServiceState(isRunning: Boolean) {
         isServiceRunning.value = isRunning

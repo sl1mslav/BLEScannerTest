@@ -150,6 +150,15 @@ class BleScannerService: Service() {
 
     // -------------------- Реакции на состояние сканнера --------------------- //
 
+    fun getRssi(): Int {
+        return bleScanner.targetRssi
+    }
+
+    fun saveNewRssi(rssi: Int) {
+        bleScanner.targetRssi = rssi
+        deviceCachingService.savePreferredRssi(rssi)
+    }
+
     private fun observeBluetoothScannerState() {
         bleScannerState.onEach(::handleScannerState).launchIn(scannerScope)
     }

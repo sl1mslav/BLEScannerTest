@@ -2,6 +2,7 @@ package com.sl1mslav.blescanner.caching
 
 import android.content.Context
 import com.google.gson.GsonBuilder
+import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 
 class DevicesPrefsCachingService(context: Context) {
@@ -25,7 +26,7 @@ class DevicesPrefsCachingService(context: Context) {
     }
 
     fun getPreferredRssi(): Int {
-        return prefs.getInt(RSSI_KEY, 0)
+        return prefs.getInt(RSSI_KEY, BleScanner.DEFAULT_TARGET_RSSI)
     }
 
     fun savePreferredRssi(rssi: Int) {

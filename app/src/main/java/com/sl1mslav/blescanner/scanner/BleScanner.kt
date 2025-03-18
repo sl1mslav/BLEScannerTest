@@ -511,9 +511,9 @@ class BleScanner(
     }
 
     companion object {
+        const val DEFAULT_TARGET_RSSI = -50
         private const val TAG = "BleScanner"
         private const val CONNECTION_TRESHHOLD_RSSI = -75
-        private const val DEFAULT_TARGET_RSSI = -50
         private const val DEFAULT_DISCOVERY_DELAY = 2L
 
         // Маска для uuid чтобы  искать только 16 бит uuid

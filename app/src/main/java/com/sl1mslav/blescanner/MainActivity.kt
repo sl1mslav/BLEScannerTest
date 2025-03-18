@@ -27,11 +27,13 @@ import androidx.core.app.ActivityCompat
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
 import com.sl1mslav.blescanner.blePermissions.AutoStartHelper
 import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
+import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.BleScannerService
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
+import kotlin.math.roundToInt
 
 
 class MainActivity : ComponentActivity() {
@@ -54,6 +56,7 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as BleScannerService.LeScannerBinder
             scannerService = binder.getService()
+            val currentRssi = scannerService?.getRssi() ?: BleScanner.DEFAULT_TARGET_RSSI
             viewModel.onChangeServiceState(isRunning = true)
             val key = "2743652"
             val bleCode = "pcjhp6060px38f9b"
@@ -65,7 +68,13 @@ class MainActivity : ComponentActivity() {
                 key = "g$key".toByteArray(),
                 bleCode = bleCode.toByteArray()
             )
-            scannerService?.startScanningForDevices(listOf(hardCodedDevice), 50)
+            if (currentRssi != BleScanner.DEFAULT_TARGET_RSSI) {
+                viewModel.onNewRssi(currentRssi)
+            }
+            scannerService?.startScanningForDevices(
+                listOf(hardCodedDevice),
+                viewModel.state.value.currentRssi
+            )
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
@@ -114,6 +123,10 @@ class MainActivity : ComponentActivity() {
                         },
                         onClickAutoStart = {
                             AutoStartHelper.instance.getAutoStartPermission(this)
+                        },
+                        onSliderValueChange = {
+                            scannerService?.saveNewRssi(it.roundToInt())
+                            viewModel.onNewRssi(it.roundToInt())
                         }
                     )
                 }
@@ -151,7 +164,8 @@ class MainActivity : ComponentActivity() {
                 permission.manifestName
             )
         ) {
-            Toast.makeText(this, "Вруби вручную, мне лень делать алерт <3", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "Вруби вручную, мне лень делать алерт <3", Toast.LENGTH_SHORT)
+                .show()
             return
         }
 

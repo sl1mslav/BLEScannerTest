@@ -17,6 +17,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -41,7 +42,8 @@ fun MainScreen(
     onCheckPermission: (BlePermission) -> Unit,
     onCheckDozeMode: () -> Unit,
     onClickAutoStart: () -> Unit,
-    onClickScannerButton: () -> Unit
+    onClickScannerButton: () -> Unit,
+    onSliderValueChange: (Float) -> Unit
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
@@ -138,11 +140,21 @@ fun MainScreen(
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
+        Text(text = "RSSI:   - ${state.currentRssi} dBm")
+        Spacer(modifier = Modifier.height(16.dp))
+        Slider(
+            modifier = Modifier.padding(horizontal = 32.dp),
+            value = state.currentRssi.toFloat(),
+            valueRange = 0f..100f,
+            steps = 100,
+            onValueChange = onSliderValueChange
+        )
+        Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = onClickScannerButton,
             enabled = state.isServiceRunning || (state.isLocationEnabled &&
-                state.isBluetoothEnabled &&
-                state.permissions.all { it.isGranted })
+                    state.isBluetoothEnabled &&
+                    state.permissions.all { it.isGranted })
         ) {
             val text = if (state.isServiceRunning) {
                 "Остановить сканнер"
@@ -151,8 +163,6 @@ fun MainScreen(
             }
             Text(text = text)
         }
-        Spacer(modifier = Modifier.height(10000.dp))
-        Text(text = "Нахуй ты до сюда долистал?")
     }
 }
 
@@ -213,13 +223,15 @@ private fun MainScreenPreview() {
                     )
                 ),
                 ignoresDozeMode = false,
-                needsAutoStart = true
+                needsAutoStart = true,
+                currentRssi = 50
             ),
             onCheckPermission = {},
             onEnableBluetooth = {},
             onEnableLocation = {},
             onCheckDozeMode = {},
-            onClickAutoStart = {}
+            onClickAutoStart = {},
+            onSliderValueChange = {}
         )
     }
 }
