@@ -1,7 +1,6 @@
 package com.sl1mslav.blescanner
 
 import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
-import android.Manifest.permission.ACCESS_FINE_LOCATION
 import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
@@ -58,10 +57,11 @@ class MainActivity : ComponentActivity() {
             scannerService = binder.getService()
             val currentRssi = scannerService?.getRssi() ?: BleScanner.DEFAULT_TARGET_RSSI
             viewModel.onChangeServiceState(isRunning = true)
-            val key = "2743652"
+            val key = "2769202"
             val bleCode = "pcjhp6060px38f9b"
+            val uuid = getSkudUuid(skudId = 111383)
             val hardCodedDevice = BleDevice(
-                uuid = "f45389a8-d158-4964-b8ef-00000001ab60",
+                uuid = uuid,
                 keyId = 1,
                 rssi = 0,
                 charData = byteArrayOf(),
@@ -102,7 +102,7 @@ class MainActivity : ComponentActivity() {
                     MainScreen(
                         modifier = Modifier.padding(innerPadding),
                         state = state.copy(
-                            needsAutoStart = AutoStartHelper.instance.needAutostart()
+                            needsAutoStart = AutoStartHelper.instance.needAutostart(this)
                         ),
                         onEnableBluetooth = {
                             openBluetoothSettings()
@@ -153,9 +153,7 @@ class MainActivity : ComponentActivity() {
 
     private fun onCheckPermission(permission: BlePermission) {
         if (permission.manifestName == ACCESS_BACKGROUND_LOCATION) {
-            multiplePermissionRequester.launch(
-                arrayOf(ACCESS_FINE_LOCATION, ACCESS_BACKGROUND_LOCATION)
-            )
+            permissionRequester.launch(ACCESS_BACKGROUND_LOCATION)
             return
         }
 
@@ -229,7 +227,16 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    private fun getSkudUuid(skudId: Int): String {
+        val skudIdInHex = skudId.toString(radix = HEX_RADIX)
+        val skudIdPart = skudIdInHex.padStart(length = SKUD_ID_HEX_LENGTH, padChar = '0')
+        return SKUD_UUID_PREFIX + skudIdPart
+    }
+
     companion object {
         private const val BIND_SERVICE_IF_RUNNING = 0
+        private const val SKUD_UUID_PREFIX = "f45389a8-d158-4964-b8ef-"
+        private const val HEX_RADIX = 16
+        private const val SKUD_ID_HEX_LENGTH = 12
     }
 }
