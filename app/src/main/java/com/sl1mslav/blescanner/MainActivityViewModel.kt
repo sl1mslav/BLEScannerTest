@@ -1,5 +1,6 @@
 package com.sl1mslav.blescanner
 
+import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -12,7 +13,6 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
-import kotlin.math.abs
 
 class MainActivityViewModel(
     availabilityTracker: BleAvailabilityObserver,
@@ -25,7 +25,7 @@ class MainActivityViewModel(
         MutableStateFlow(isServiceRunningInitial)
     private val ignoresDozeMode: MutableStateFlow<Boolean> = MutableStateFlow(ignoresDozeModeInitial)
 
-    private val rssi = MutableStateFlow(abs(BleScanner.DEFAULT_TARGET_RSSI))
+    private val rssi = MutableStateFlow(BleScanner.DEFAULT_TARGET_RSSI)
 
     val state = combine(
         availabilityTracker.bleAvailability,
@@ -53,12 +53,13 @@ class MainActivityViewModel(
             isServiceRunning = isServiceRunningInitial,
             ignoresDozeMode = ignoresDozeModeInitial,
             needsAutoStart = false,
-            currentRssi = abs(BleScanner.DEFAULT_TARGET_RSSI)
+            currentRssi = BleScanner.DEFAULT_TARGET_RSSI
         )
     )
 
     fun onNewRssi(newRssi: Int) {
-        rssi.update { abs(newRssi) }
+        Log.d("RSSI", "newRssi: $newRssi")
+        rssi.update { newRssi }
     }
 
     fun onChangeServiceState(isRunning: Boolean) {

@@ -27,7 +27,6 @@ import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
-import kotlin.math.abs
 import kotlin.time.Duration.Companion.minutes
 
 class BleScannerService: Service() {
@@ -156,9 +155,9 @@ class BleScannerService: Service() {
     }
 
     fun saveNewRssi(rssi: Int) {
-        val negativeRssi = -abs(rssi)
-        bleScanner.targetRssi = negativeRssi
-        deviceCachingService.savePreferredRssi(negativeRssi)
+        Log.d("RSSI", "saveNewRssi: $rssi")
+        bleScanner.targetRssi = rssi
+        deviceCachingService.savePreferredRssi(rssi)
     }
 
     private fun observeBluetoothScannerState() {

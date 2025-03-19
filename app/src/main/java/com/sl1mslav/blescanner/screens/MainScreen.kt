@@ -26,12 +26,12 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
+import kotlin.math.abs
 
 @Composable
 fun MainScreen(
@@ -140,11 +140,11 @@ fun MainScreen(
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
-        Text(text = "RSSI:   - ${state.currentRssi} dBm")
+        Text(text = "RSSI:  ${state.currentRssi} dBm")
         Spacer(modifier = Modifier.height(16.dp))
         Slider(
             modifier = Modifier.padding(horizontal = 32.dp),
-            value = state.currentRssi.toFloat(),
+            value = abs(state.currentRssi.toFloat()),
             valueRange = 0f..100f,
             steps = 100,
             onValueChange = onSliderValueChange

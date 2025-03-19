@@ -32,6 +32,7 @@ import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
+import kotlin.math.abs
 import kotlin.math.roundToInt
 
 
@@ -125,8 +126,9 @@ class MainActivity : ComponentActivity() {
                             AutoStartHelper.instance.getAutoStartPermission(this)
                         },
                         onSliderValueChange = {
-                            scannerService?.saveNewRssi(it.roundToInt())
-                            viewModel.onNewRssi(it.roundToInt())
+                            val negativeRssi = -abs(it.roundToInt())
+                            scannerService?.saveNewRssi(negativeRssi)
+                            viewModel.onNewRssi(negativeRssi)
                         }
                     )
                 }
