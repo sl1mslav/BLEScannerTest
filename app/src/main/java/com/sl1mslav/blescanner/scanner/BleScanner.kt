@@ -246,7 +246,9 @@ class BleScanner(
             value: ByteArray
         ) {
             super.onCharacteristicChanged(gatt, characteristic, value)
-            Log.d(TAG, "onCharacteristicChanged: ${characteristic.uuid}")
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU)
+                return
+            Log.d(TAG, "onCharacteristicChanged: ${characteristic.uuid}, Android >= 14")
             // Читаем код для шифрования
             if (characteristic.uuid.toString().startsWith(CHARACTERISTIC_PREFIX)) {
                 updateCurrentBleDevice(gatt) {
@@ -258,6 +260,30 @@ class BleScanner(
             } catch (e: SecurityException) {
                 _state.update { it.failed(withError = BleScannerError.NO_CONNECT_PERMISSION) }
             }
+        }
+
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            super.onCharacteristicChanged(gatt, characteristic)
+            if (Build.VERSION.SDK_INT > Build.VERSION_CODES.TIRAMISU)
+                return
+            Log.d(TAG, "onCharacteristicChanged: ${characteristic.uuid}, Android < 14")
+            @Suppress("DEPRECATION")
+            val value = characteristic.value
+            // Читаем код для шифрования
+            if (characteristic.uuid.toString().startsWith(CHARACTERISTIC_PREFIX)) {
+                updateCurrentBleDevice(gatt) {
+                    it.copy(charData = value.copyOfRange(fromIndex = 1, toIndex = value.size))
+                }
+            }
+            try {
+                gatt.readRemoteRssi()
+            } catch (e: SecurityException) {
+                _state.update { it.failed(withError = BleScannerError.NO_CONNECT_PERMISSION) }
+            }
+            // val data = gatt.readCharacteristic(characteristic) todo async that!
         }
     }
 
@@ -278,6 +304,7 @@ class BleScanner(
         _devices.update { bleDevices }
         observeBleAvailability()
         startScanningForDevices(bleDevices)
+        Log.d(TAG, "startScanningForDevices: start scanning for devices: ${bleDevices.joinToString { it.uuid }}")
     }
 
     fun release() {
