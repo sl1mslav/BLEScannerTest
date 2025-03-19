@@ -25,7 +25,11 @@ import com.sl1mslav.blescanner.scanner.model.BleDevice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
 
+
+
 // GUIDE: https://punchthrough.com/android-ble-guide/
+// TODO look into enqueueing ALL of the launched operations
+// REPO: https://github.com/PunchThrough/ble-starter-android
 
 class NewBleScanner(
     private val context: Context
