@@ -4,8 +4,7 @@ data class BleDevice(
     val uuid: String,
     val rssi: Int,
     val isConnected: Boolean = false,
-    val keyId: Int = 1,
-    var charData : ByteArray,
+    var charData: ByteArray,
     val key: ByteArray,
     val bleCode: ByteArray,
 ) {
@@ -18,7 +17,6 @@ data class BleDevice(
         if (uuid != other.uuid) return false
         if (rssi != other.rssi) return false
         if (isConnected != other.isConnected) return false
-        if (keyId != other.keyId) return false
         if (!charData.contentEquals(other.charData)) return false
         if (!key.contentEquals(other.key)) return false
         if (!bleCode.contentEquals(other.bleCode)) return false
@@ -30,7 +28,6 @@ data class BleDevice(
         var result = uuid.hashCode()
         result = 31 * result + rssi
         result = 31 * result + isConnected.hashCode()
-        result = 31 * result + keyId
         result = 31 * result + charData.contentHashCode()
         result = 31 * result + key.contentHashCode()
         result = 31 * result + bleCode.contentHashCode()

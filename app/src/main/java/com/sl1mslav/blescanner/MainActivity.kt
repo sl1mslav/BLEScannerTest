@@ -63,7 +63,6 @@ class MainActivity : ComponentActivity() {
             val uuid = getSkudUuid(skudId = 111383)
             val hardCodedDevice = BleDevice(
                 uuid = uuid,
-                keyId = 1,
                 rssi = 0,
                 charData = byteArrayOf(),
                 key = "g$key".toByteArray(),
