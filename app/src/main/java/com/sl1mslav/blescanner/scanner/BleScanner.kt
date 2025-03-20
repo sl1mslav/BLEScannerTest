@@ -283,7 +283,6 @@ class BleScanner(
             } catch (e: SecurityException) {
                 _state.update { it.failed(withError = BleScannerError.NO_CONNECT_PERMISSION) }
             }
-            // val data = gatt.readCharacteristic(characteristic) todo async that!
         }
     }
 
