@@ -7,21 +7,32 @@ import android.bluetooth.BluetoothGatt.GATT_CONNECTION_TIMEOUT
 import android.bluetooth.BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION
 import android.bluetooth.BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION
 import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
+import android.content.IntentFilter
+import android.os.Build
+import android.os.Handler
+import android.os.Looper
+import android.os.Parcelable
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.sl1mslav.blescanner.encryption.encryptDeviceCommand
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Connecting
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed.Reason
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Scanning
-import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
+import java.util.UUID
 
 
 // GUIDE: https://punchthrough.com/android-ble-guide/
@@ -36,6 +47,8 @@ class NewBleScanner(
     private val devices = MutableStateFlow<List<BleDevice>>(emptyList())
 
     private var bluetoothGatt: BluetoothGatt? = null
+    private var bluetoothCharacteristic: BluetoothGattCharacteristic? = null
+    private var bluetoothCharacteristicNotification: BluetoothGattCharacteristic? = null
 
     private val bluetoothManager by lazy {
         ContextCompat.getSystemService(
@@ -45,6 +58,36 @@ class NewBleScanner(
     }
 
     private val bluetoothLeScanner get() = bluetoothManager?.adapter?.bluetoothLeScanner
+
+    private fun getBondStateReceiverForDevice(
+        uuid: String,
+        initialRssi: Int,
+        device: BluetoothDevice
+    ) = object : BroadcastReceiver() {
+        override fun onReceive(c: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothDevice.ACTION_BOND_STATE_CHANGED) {
+                val receivedDevice = intent.parcelableExtraCompat<BluetoothDevice>(
+                    key = BluetoothDevice.EXTRA_DEVICE
+                )
+                val bondState = intent.getIntExtra(
+                    BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,
+                    BluetoothDevice.BOND_NONE
+                )
+                if (
+                    receivedDevice != null &&
+                    receivedDevice.address == device.address &&
+                    bondState == BluetoothDevice.BOND_BONDED
+                ) {
+                    context.unregisterReceiver(this)
+                    tryConnectToDevice(
+                        uuid = uuid,
+                        rssi = initialRssi,
+                        bluetoothDevice = receivedDevice
+                    )
+                }
+            }
+        }
+    }
 
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
@@ -136,12 +179,18 @@ class NewBleScanner(
         }
     }
 
-    private val bluetoothGattCallback = object : BluetoothGattCallback() {
+    private inner class DeviceBluetoothGattCallback(
+        private val uuid: String,
+        private val initialRssi: Int
+    ) : BluetoothGattCallback() {
 
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                handleConnectionError(gatt = gatt, connectionStatus = status)
+                handleConnectionError(
+                    gatt = gatt,
+                    connectionStatus = status
+                )
                 return
             }
             when (newState) {
@@ -151,25 +200,159 @@ class NewBleScanner(
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.d(TAG, "onConnectionStateChange: disconnected")
-                    // todo reflect disconnection in state
                     state.update { Scanning }
                     disconnectGatt(gatt)
                     // todo restart scan
                 }
 
                 else -> {
-                    // We're either connecting or disconnecting, these statuses can be ignored'
+                    // We're either connecting or disconnecting, these statuses can be ignored
                     Log.d(TAG, "onConnectionStateChange: some other state: $newState")
                 }
             }
         }
 
-        private fun handleSuccessfulConnection(gatt: BluetoothGatt) {
-            bluetoothLeScanner?.stopScan(scanCallback)
-            bluetoothGatt = gatt
+        override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
+            super.onServicesDiscovered(gatt, status)
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                handleDiscoveredServices(gatt)
+            } else {
+                Log.d(
+                    TAG,
+                    "onServicesDiscovered: service discovery failed due to status $status"
+                )
+            }
         }
 
-        private fun handleConnectionError(gatt: BluetoothGatt, connectionStatus: Int) {
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic,
+            value: ByteArray
+        ) {
+            super.onCharacteristicChanged(gatt, characteristic, value)
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+                // Using other version of this callback on older Androids
+                return
+            }
+
+            // Read the encryption code
+            updateCurrentDevice(gatt) { device ->
+                device.copy(charData = value.copyOfRange(fromIndex = 1, toIndex = value.size))
+            }
+
+            try {
+                Log.d(TAG, "onCharacteristicChanged: reading remote rssi")
+                gatt.readRemoteRssi()
+            } catch (e: SecurityException) {
+                Log.d(
+                    TAG,
+                    "onCharacteristicChanged: could not read remote rssi: no CONNECT permission"
+                )
+                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+            }
+        }
+
+        @Deprecated("This still has to be used to support Android < 14")
+        override fun onCharacteristicChanged(
+            gatt: BluetoothGatt,
+            characteristic: BluetoothGattCharacteristic
+        ) {
+            @Suppress("DEPRECATION")
+            super.onCharacteristicChanged(gatt, characteristic)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                // Using other version of this callback on newer Androids
+                return
+            }
+
+            @Suppress("DEPRECATION")
+            val value = characteristic.value
+
+            // Read the encryption code
+            updateCurrentDevice(gatt) { device ->
+                device.copy(charData = value.copyOfRange(fromIndex = 1, toIndex = value.size))
+            }
+
+            try {
+                Log.d(TAG, "onCharacteristicChanged: reading remote rssi")
+                gatt.readRemoteRssi()
+            } catch (e: SecurityException) {
+                Log.d(
+                    TAG,
+                    "onCharacteristicChanged: could not read remote rssi: no CONNECT permission"
+                )
+                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+            }
+        }
+
+        override fun onCharacteristicWrite(
+            gatt: BluetoothGatt?,
+            characteristic: BluetoothGattCharacteristic?,
+            status: Int
+        ) {
+            super.onCharacteristicWrite(gatt, characteristic, status)
+            when (status) {
+                BluetoothGatt.GATT_SUCCESS -> {
+                    Log.d(TAG, "onCharacteristicWrite: successfully opened door")
+                    // todo relay info about door being open...?
+                }
+
+                BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
+                    Log.d(TAG, "onCharacteristicWrite: write operation not permitted!")
+                }
+
+                else -> {
+                    Log.d(TAG, "onCharacteristicWrite: unknown error. Status = $status")
+                }
+            }
+        }
+
+        override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
+            super.onReadRemoteRssi(gatt, rssi, status)
+            Log.d(TAG, "onReadRemoteRssi: newRssi: $rssi")
+            state.update { NewBleScannerState.Connected(uuid, rssi) }
+            currentDeviceFromGatt(gatt)?.let { device ->
+                Log.d(TAG, "onReadRemoteRssi: sending open signal")
+                sendOpenSignal(gatt, device)
+            } ?: run {
+                Log.d(TAG, "onReadRemoteRssi: couldn't send open signal: device is null")
+            }
+        }
+
+        private fun handleSuccessfulConnection(gatt: BluetoothGatt) {
+            try {
+                bluetoothLeScanner?.stopScan(scanCallback)
+                if (gatt.device.bondState != BluetoothDevice.BOND_BONDING) {
+                    bluetoothGatt = gatt
+                    state.update { NewBleScannerState.Connected(uuid, initialRssi) }
+                    // Using a Handler here to avoid nasty bug on older androids
+                    // And ensure that services are discovered on the main thread
+                    Handler(Looper.getMainLooper()).post {
+                        val couldDiscoverServices = gatt.discoverServices()
+                        if (!couldDiscoverServices) {
+                            Log.d(
+                                TAG,
+                                "handleSuccessfulConnection: could not start services discovery"
+                            )
+                        }
+                    }
+                } else {
+                    // Bonding is in progress, wait for it to finish
+                    Log.d(
+                        TAG,
+                        "handleSuccessfulConnection: waiting for bonding to complete"
+                    )
+                }
+            } catch (e: SecurityException) {
+                state.update {
+                    Failed(reason = Reason.NO_SCAN_PERMISSION)
+                }
+            }
+        }
+
+        private fun handleConnectionError(
+            gatt: BluetoothGatt,
+            connectionStatus: Int
+        ) {
             Log.d(TAG, "handleConnectionError: status = $connectionStatus")
             disconnectGatt(gatt)
             if (
@@ -180,8 +363,7 @@ class NewBleScanner(
                     TAG,
                     "handleConnectionError: calling createBond() and then connectGatt()"
                 )
-                // todo call createBond() on bluetoothDevice and wait for the bonding process to succeed
-                //  before calling connectGatt() again.
+                tryToAuthorizeDevice(gatt)
                 return
             }
             when (connectionStatus) {
@@ -198,7 +380,7 @@ class NewBleScanner(
                 GATT_FIRMWARE_ERROR -> {
                     Log.d(
                         TAG, "handleConnectionError: famous 133 error. " +
-                                "Either a timeout occurred or Android refuses to connect to device."
+                            "Either a timeout occurred or Android refuses to connect to device."
                     )
                     state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
@@ -218,6 +400,139 @@ class NewBleScanner(
             } catch (e: SecurityException) {
                 state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
+        }
+
+        private fun tryToAuthorizeDevice(
+            gatt: BluetoothGatt
+        ) {
+            val device = gatt.device ?: run {
+                Log.d(TAG, "tryToAuthorizeDevice: device is null")
+                state.update { Failed(reason = Reason.CONNECTION_FAILED) }
+                return
+            }
+            val bondStateReceiver = getBondStateReceiverForDevice(
+                uuid,
+                initialRssi,
+                device
+            )
+            ContextCompat.registerReceiver(
+                context,
+                bondStateReceiver,
+                IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED),
+                ContextCompat.RECEIVER_NOT_EXPORTED
+            )
+            try {
+                device.createBond()
+            } catch (e: SecurityException) {
+                Log.d(TAG, "tryToAuthorizeDevice: no connect permission, can't create bond")
+                context.unregisterReceiver(bondStateReceiver)
+                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+            }
+        }
+
+        private fun handleDiscoveredServices(gatt: BluetoothGatt) {
+            val characteristics = gatt.services?.flatMap { service ->
+                service?.characteristics?.filterNotNull() ?: emptyList()
+            } ?: run {
+                Log.d(TAG, "handleDiscoveredServices: services are null")
+                return
+            }
+            parseAndSaveCharacteristics(characteristics)
+            enableNotifications(gatt)
+        }
+
+        private fun parseAndSaveCharacteristics(characteristics: List<BluetoothGattCharacteristic>) {
+            characteristics.forEach { characteristic ->
+                // When we find a characteristic for notifications, we save it to subscribe to its
+                // updates
+                if (characteristic.uuid == UUID.fromString(BLE_DEFAULT_CHARACTERISTIC_UUID)) {
+                    bluetoothCharacteristic = characteristic
+                }
+
+                // When we find a characteristic for sending open signals, we save it for later use
+                if (characteristic.uuid == UUID.fromString(BLE_DEFAULT_NOTIFICATION_UUID)) {
+                    bluetoothCharacteristicNotification = characteristic
+                }
+            }
+        }
+
+        private fun enableNotifications(gatt: BluetoothGatt) {
+            // Subscribe to characteristic's updates
+            try {
+                gatt.setCharacteristicNotification(
+                    bluetoothCharacteristicNotification,
+                    true
+                )
+                bluetoothCharacteristicNotification?.descriptors?.firstOrNull()?.let { descriptor ->
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                        bluetoothGatt?.writeDescriptor(
+                            descriptor,
+                            BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
+                        )
+                    } else {
+                        @Suppress("DEPRECATION")
+                        descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE)
+                        @Suppress("DEPRECATION")
+                        bluetoothGatt?.writeDescriptor(descriptor)
+                    }
+                }
+
+            } catch (e: SecurityException) {
+                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+            }
+        }
+    }
+
+    private fun sendOpenSignal(
+        gatt: BluetoothGatt,
+        device: BleDevice
+    ) {
+        Log.d(TAG, "sendOpenSignal: checking characteristic and gatt for null")
+        val characteristic = bluetoothCharacteristic ?: return
+        Log.d(TAG, "sendOpenSignal: check passed")
+        val command = encryptDeviceCommand(bleDevice = device)
+
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                val result = gatt.writeCharacteristic(
+                    characteristic,
+                    command,
+                    BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT
+                )
+                Log.d(TAG, "sendOpenSignal: result status = $result")
+                if (result == BluetoothStatusCodes.ERROR_GATT_WRITE_REQUEST_BUSY) {
+                    Log.d(TAG, "sendOpenSignal: device is busy! Restarting scanner.")
+                    // todo restart scanner???
+                }
+            } else {
+                @Suppress("DEPRECATION")
+                characteristic.value = command
+                @Suppress("DEPRECATION")
+                if (!gatt.writeCharacteristic(characteristic)) {
+                    Log.d(TAG, "sendOpenSignal: could not write characteristic on Android < 14")
+                }
+
+            }
+        } catch (e: SecurityException) {
+            Log.e(TAG, "sendOpenSignal: missing permission", e)
+        }
+    }
+
+    private fun currentDeviceFromGatt(
+        gatt: BluetoothGatt
+    ): BleDevice? {
+        val uuids = gatt.services.map { service -> service.uuid.toString() }
+        return devices.value.firstOrNull { device -> device.uuid in uuids }
+    }
+
+    private fun updateCurrentDevice(
+        gatt: BluetoothGatt,
+        transform: (BleDevice) -> BleDevice
+    ) {
+        val currentDevice = currentDeviceFromGatt(gatt) ?: return
+        val updatedDevice = transform(currentDevice)
+        devices.update { devices ->
+            devices - currentDevice + updatedDevice
         }
     }
 
@@ -265,11 +580,12 @@ class NewBleScanner(
             bluetoothDevice.connectGatt(
                 context,
                 true,
-                bluetoothGattCallback,
+                DeviceBluetoothGattCallback(
+                    uuid = uuid,
+                    initialRssi = rssi
+                ),
                 BluetoothDevice.TRANSPORT_LE
             )
-            // todo think about reflecting connected/disconnected state
-            state.update { NewBleScannerState.Connected(uuid = uuid, rssi = rssi) }
         } catch (e: SecurityException) {
             Log.e(TAG, "connectDeviceGatt: missing BLUETOOTH_CONNECT permission", e)
             state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
@@ -278,9 +594,30 @@ class NewBleScanner(
 
     private fun isBusy() = state is Busy
 
+    /**
+     * A backwards compatible approach of obtaining a parcelable extra from an [Intent] object.
+     *
+     * NOTE: Despite the docs stating that [Intent.getParcelableExtra] is deprecated in Android 13,
+     * Google has confirmed in https://issuetracker.google.com/issues/240585930#comment6 that the
+     * replacement API is buggy for Android 13, and they suggested that developers continue to use the
+     * deprecated API for Android 13. The issue will be fixed for Android 14 (U).
+     */
+    internal inline fun <reified T : Parcelable> Intent.parcelableExtraCompat(key: String): T? =
+        when {
+            Build.VERSION.SDK_INT > Build.VERSION_CODES.TIRAMISU -> getParcelableExtra(
+                key,
+                T::class.java
+            )
+
+            else -> @Suppress("DEPRECATION") getParcelableExtra(key) as? T
+        }
+
     private companion object {
         const val TAG = "NewBleScanner"
 
         const val GATT_FIRMWARE_ERROR = 0x85
+
+        const val BLE_DEFAULT_CHARACTERISTIC_UUID = "0000f401-0000-1000-8000-00805f9b34fb"
+        const val BLE_DEFAULT_NOTIFICATION_UUID = "0000f402-0000-1000-8000-00805f9b34fb"
     }
 }
