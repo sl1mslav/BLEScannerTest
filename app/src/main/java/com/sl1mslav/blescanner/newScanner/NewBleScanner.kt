@@ -64,7 +64,12 @@ class NewBleScanner(
 
     private val devices = MutableStateFlow<List<BleDevice>>(emptyList())
 
-    private val scanScheduler = BleFrequentScanScheduler()
+    private val scanScheduler = BleFrequentScanScheduler(
+        onMissingScanPermission = {
+            Log.d(TAG, "scheduleScan: error while scheduling scan - no SCAN permission")
+            _state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+        }
+    )
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var bluetoothCharacteristic: BluetoothGattCharacteristic? = null
@@ -74,7 +79,7 @@ class NewBleScanner(
 
     private val bleAvailability = BleAvailabilityObserver
         .getInstance(context)
-        .bleAvailability
+        .bleAvailability // todo this restarts scan even on first collection! think about it.
 
     private val bluetoothManager by lazy {
         ContextCompat.getSystemService(
