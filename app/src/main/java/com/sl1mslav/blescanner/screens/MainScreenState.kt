@@ -7,7 +7,6 @@ data class MainScreenState(
     val isBluetoothEnabled: Boolean,
     val isLocationEnabled: Boolean,
     val permissions: List<BlePermission>,
-    val currentRssi: Int,
     val isServiceRunning: Boolean,
     val ignoresDozeMode: Boolean,
     val needsAutoStart: Boolean

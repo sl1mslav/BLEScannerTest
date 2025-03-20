@@ -56,24 +56,19 @@ class MainActivity : ComponentActivity() {
         override fun onServiceConnected(className: ComponentName, service: IBinder) {
             val binder = service as BleScannerService.LeScannerBinder
             scannerService = binder.getService()
-            val currentRssi = scannerService?.getRssi() ?: BleScanner.DEFAULT_TARGET_RSSI
             viewModel.onChangeServiceState(isRunning = true)
             val key = "2769202"
             val bleCode = "pcjhp6060px38f9b"
             val uuid = getSkudUuid(skudId = 111383)
             val hardCodedDevice = BleDevice(
                 uuid = uuid,
-                rssi = 0,
+                rssi = -50,
                 charData = byteArrayOf(),
                 key = "g$key".toByteArray(),
                 bleCode = bleCode.toByteArray()
             )
-            if (currentRssi != BleScanner.DEFAULT_TARGET_RSSI) {
-                viewModel.onNewRssi(currentRssi)
-            }
             scannerService?.startScanningForDevices(
-                listOf(hardCodedDevice),
-                viewModel.state.value.currentRssi
+                listOf(hardCodedDevice)
             )
         }
 
@@ -123,11 +118,6 @@ class MainActivity : ComponentActivity() {
                         },
                         onClickAutoStart = {
                             AutoStartHelper.instance.getAutoStartPermission(this)
-                        },
-                        onSliderValueChange = {
-                            val negativeRssi = -abs(it.roundToInt())
-                            scannerService?.saveNewRssi(negativeRssi)
-                            viewModel.onNewRssi(negativeRssi)
                         }
                     )
                 }

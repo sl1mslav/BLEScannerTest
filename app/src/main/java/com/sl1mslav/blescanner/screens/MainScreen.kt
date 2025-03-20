@@ -17,7 +17,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -31,7 +30,6 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
-import kotlin.math.abs
 
 @Composable
 fun MainScreen(
@@ -42,8 +40,7 @@ fun MainScreen(
     onCheckPermission: (BlePermission) -> Unit,
     onCheckDozeMode: () -> Unit,
     onClickAutoStart: () -> Unit,
-    onClickScannerButton: () -> Unit,
-    onSliderValueChange: (Float) -> Unit
+    onClickScannerButton: () -> Unit
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
@@ -140,16 +137,6 @@ fun MainScreen(
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
-        Text(text = "RSSI:  ${state.currentRssi} dBm")
-        Spacer(modifier = Modifier.height(16.dp))
-        Slider(
-            modifier = Modifier.padding(horizontal = 32.dp),
-            value = abs(state.currentRssi.toFloat()),
-            valueRange = 0f..100f,
-            steps = 100,
-            onValueChange = onSliderValueChange
-        )
-        Spacer(modifier = Modifier.height(32.dp))
         Button(
             onClick = onClickScannerButton,
             enabled = state.isServiceRunning || (state.isLocationEnabled &&
@@ -223,15 +210,13 @@ private fun MainScreenPreview() {
                     )
                 ),
                 ignoresDozeMode = false,
-                needsAutoStart = true,
-                currentRssi = 50
+                needsAutoStart = true
             ),
             onCheckPermission = {},
             onEnableBluetooth = {},
             onEnableLocation = {},
             onCheckDozeMode = {},
-            onClickAutoStart = {},
-            onSliderValueChange = {}
+            onClickAutoStart = {}
         )
     }
 }

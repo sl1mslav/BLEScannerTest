@@ -25,23 +25,19 @@ class MainActivityViewModel(
         MutableStateFlow(isServiceRunningInitial)
     private val ignoresDozeMode: MutableStateFlow<Boolean> = MutableStateFlow(ignoresDozeModeInitial)
 
-    private val rssi = MutableStateFlow(BleScanner.DEFAULT_TARGET_RSSI)
-
     val state = combine(
         availabilityTracker.bleAvailability,
         permissions,
         isServiceRunning,
-        ignoresDozeMode,
-        rssi
-    ) { bleAvailability, permissions, isServiceRunning, ignoresDozeMode, rssi ->
+        ignoresDozeMode
+    ) { bleAvailability, permissions, isServiceRunning, ignoresDozeMode->
         MainScreenState(
             isBluetoothEnabled = bleAvailability.isBluetoothEnabled,
             isLocationEnabled = bleAvailability.isLocationEnabled,
             permissions = permissions,
             isServiceRunning = isServiceRunning,
             ignoresDozeMode = ignoresDozeMode,
-            needsAutoStart = false,
-            currentRssi = rssi
+            needsAutoStart = false
         )
     }.stateIn(
         scope = viewModelScope,
@@ -52,15 +48,9 @@ class MainActivityViewModel(
             permissions = initialPermissions,
             isServiceRunning = isServiceRunningInitial,
             ignoresDozeMode = ignoresDozeModeInitial,
-            needsAutoStart = false,
-            currentRssi = BleScanner.DEFAULT_TARGET_RSSI
+            needsAutoStart = false
         )
     )
-
-    fun onNewRssi(newRssi: Int) {
-        Log.d("RSSI", "newRssi: $newRssi")
-        rssi.update { newRssi }
-    }
 
     fun onChangeServiceState(isRunning: Boolean) {
         isServiceRunning.value = isRunning

@@ -25,14 +25,6 @@ class DevicesPrefsCachingService(context: Context) {
         prefs.edit().putStringSet(DEVICES_KEY, deviceElements).apply()
     }
 
-    fun getPreferredRssi(): Int {
-        return prefs.getInt(RSSI_KEY, BleScanner.DEFAULT_TARGET_RSSI)
-    }
-
-    fun savePreferredRssi(rssi: Int) {
-        prefs.edit().putInt(RSSI_KEY, rssi).apply()
-    }
-
     companion object {
         private const val DEVICES_PREFS_NAME = "devices_preferences"
         private const val DEVICES_KEY = "devices"
