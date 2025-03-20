@@ -4,27 +4,24 @@ import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGatt.GATT_CONNECTION_CONGESTED
 import android.bluetooth.BluetoothGatt.GATT_CONNECTION_TIMEOUT
-import android.bluetooth.BluetoothGatt.GATT_FAILURE
 import android.bluetooth.BluetoothGatt.GATT_INSUFFICIENT_AUTHENTICATION
-import android.bluetooth.BluetoothGatt.GATT_INSUFFICIENT_AUTHORIZATION
 import android.bluetooth.BluetoothGatt.GATT_INSUFFICIENT_ENCRYPTION
-import android.bluetooth.BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH
-import android.bluetooth.BluetoothGatt.GATT_INVALID_OFFSET
-import android.bluetooth.BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED
-import android.bluetooth.BluetoothGatt.STATE_CONNECTED
 import android.bluetooth.BluetoothGattCallback
+import android.bluetooth.BluetoothManager
+import android.bluetooth.BluetoothProfile
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.content.Context
 import android.util.Log
+import androidx.core.content.ContextCompat
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Connecting
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed.Reason
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Scanning
+import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.update
-
 
 
 // GUIDE: https://punchthrough.com/android-ble-guide/
@@ -40,6 +37,15 @@ class NewBleScanner(
 
     private var bluetoothGatt: BluetoothGatt? = null
 
+    private val bluetoothManager by lazy {
+        ContextCompat.getSystemService(
+            context,
+            BluetoothManager::class.java
+        )
+    }
+
+    private val bluetoothLeScanner get() = bluetoothManager?.adapter?.bluetoothLeScanner
+
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
@@ -49,7 +55,8 @@ class NewBleScanner(
             }
             val foundUuid = scanResult
                 .scanRecord
-                ?.serviceUuids?.singleOrNull()?.uuid?.toString() ?: run {
+                ?.serviceUuids?.singleOrNull()?.uuid?.toString()
+                ?: run {
                     Log.d(TAG, "onScanResult: service uuid is null")
                     return
                 }
@@ -131,62 +138,85 @@ class NewBleScanner(
 
     private val bluetoothGattCallback = object : BluetoothGattCallback() {
 
-        override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
+        override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
             if (status != BluetoothGatt.GATT_SUCCESS) {
-                handleConnectionError(connectionStatus = status)
+                handleConnectionError(gatt = gatt, connectionStatus = status)
                 return
             }
-
             when (newState) {
-                STATE_CONNECTED -> {
-                    bluetoothGatt = gatt
+                BluetoothProfile.STATE_CONNECTED -> {
+                    handleSuccessfulConnection(gatt)
+                }
+
+                BluetoothProfile.STATE_DISCONNECTED -> {
+                    Log.d(TAG, "onConnectionStateChange: disconnected")
+                    // todo reflect disconnection in state
+                    state.update { Scanning }
+                    disconnectGatt(gatt)
+                    // todo restart scan
+                }
+
+                else -> {
+                    // We're either connecting or disconnecting, these statuses can be ignored'
+                    Log.d(TAG, "onConnectionStateChange: some other state: $newState")
                 }
             }
         }
 
-        private fun handleConnectionError(connectionStatus: Int) {
+        private fun handleSuccessfulConnection(gatt: BluetoothGatt) {
+            bluetoothLeScanner?.stopScan(scanCallback)
+            bluetoothGatt = gatt
+        }
+
+        private fun handleConnectionError(gatt: BluetoothGatt, connectionStatus: Int) {
             Log.d(TAG, "handleConnectionError: status = $connectionStatus")
+            disconnectGatt(gatt)
+            if (
+                connectionStatus == GATT_INSUFFICIENT_ENCRYPTION ||
+                connectionStatus == GATT_INSUFFICIENT_AUTHENTICATION
+            ) {
+                Log.d(
+                    TAG,
+                    "handleConnectionError: calling createBond() and then connectGatt()"
+                )
+                // todo call createBond() on bluetoothDevice and wait for the bonding process to succeed
+                //  before calling connectGatt() again.
+                return
+            }
             when (connectionStatus) {
-                GATT_INSUFFICIENT_AUTHENTICATION -> {
-
-                }
-
-                GATT_REQUEST_NOT_SUPPORTED -> {
-
-                }
-
-                GATT_INSUFFICIENT_ENCRYPTION -> {
-
-                }
-
-                GATT_INVALID_OFFSET -> {
-
-                }
-
-                GATT_INSUFFICIENT_AUTHORIZATION -> {
-
-                }
-
-                GATT_INVALID_ATTRIBUTE_LENGTH -> {
-
-                }
-
                 GATT_CONNECTION_CONGESTED -> {
-
+                    Log.d(TAG, "handleConnectionError: connection is congested")
+                    state.update { Failed(reason = Reason.CONNECTION_CONGESTED) }
                 }
 
                 GATT_CONNECTION_TIMEOUT -> {
-
-                }
-
-                GATT_FAILURE -> {
-
+                    Log.d(TAG, "handleConnectionError: connection timed out")
+                    state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
 
                 GATT_FIRMWARE_ERROR -> {
-
+                    Log.d(
+                        TAG, "handleConnectionError: famous 133 error. " +
+                                "Either a timeout occurred or Android refuses to connect to device."
+                    )
+                    state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
+
+                else -> {
+                    // Reflecting disconnection in state
+                    state.update { Scanning }
+                }
+            }
+            // todo restart scan here
+        }
+
+        private fun disconnectGatt(gatt: BluetoothGatt) {
+            bluetoothGatt = null
+            try {
+                gatt.close()
+            } catch (e: SecurityException) {
+                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
     }
@@ -232,21 +262,13 @@ class NewBleScanner(
     ) {
         state.update { Connecting }
         try {
-            // todo stop scan here?
-            /*
-                All connectGatt(...) variants return a BluetoothGatt object,
-                which can be thought of as a handle on the BLE connection we’re establishing,
-                allowing us to initiate read and write operations. However, we typically
-                don’t keep a reference to this returned BluetoothGatt, and instead
-                only keep a reference to the one that’s given to us as an argument
-                for BluetoothGattCallback callback methods.
-             */
             bluetoothDevice.connectGatt(
                 context,
                 true,
                 bluetoothGattCallback,
                 BluetoothDevice.TRANSPORT_LE
             )
+            // todo think about reflecting connected/disconnected state
             state.update { NewBleScannerState.Connected(uuid = uuid, rssi = rssi) }
         } catch (e: SecurityException) {
             Log.e(TAG, "connectDeviceGatt: missing BLUETOOTH_CONNECT permission", e)

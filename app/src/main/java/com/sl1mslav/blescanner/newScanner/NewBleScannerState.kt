@@ -26,7 +26,8 @@ sealed interface NewBleScannerState {
             BLUETOOTH_STACK_BAD_STATE,
             FEATURE_NOT_SUPPORTED,
             SCANNING_TOO_FREQUENTLY,
-            SCAN_FAILED_UNKNOWN_ERROR
+            SCAN_FAILED_UNKNOWN_ERROR,
+            CONNECTION_CONGESTED
         }
     }
 }
