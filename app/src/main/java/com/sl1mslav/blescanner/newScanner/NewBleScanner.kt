@@ -41,6 +41,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
@@ -58,7 +59,9 @@ class NewBleScanner(
 
     private val scannerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    private val state = MutableStateFlow<NewBleScannerState>(NewBleScannerState.Idle)
+    private val _state = MutableStateFlow<NewBleScannerState>(NewBleScannerState.Idle)
+    val state = _state.asStateFlow()
+
     private val devices = MutableStateFlow<List<BleDevice>>(emptyList())
 
     private val scanScheduler = BleFrequentScanScheduler()
@@ -121,7 +124,7 @@ class NewBleScanner(
         bleAvailability.onEach { bleState ->
             when {
                 !bleState.isBluetoothEnabled && !bleState.isLocationEnabled -> {
-                    state.update {
+                    _state.update {
                         Failed(
                             reason = Reason.BLUETOOTH_AND_LOCATION_OFF
                         )
@@ -130,14 +133,14 @@ class NewBleScanner(
                 }
 
                 !bleState.isBluetoothEnabled -> {
-                    state.update {
+                    _state.update {
                         Failed(reason = Reason.BLUETOOTH_OFF)
                     }
                     stopScanning()
                 }
 
                 !bleState.isLocationEnabled -> {
-                    state.update {
+                    _state.update {
                         Failed(reason = Reason.LOCATION_OFF)
                     }
                     stopScanning()
@@ -171,18 +174,18 @@ class NewBleScanner(
                     callback = scanCallback
                 )
             }
-            state.update { Scanning }
+            _state.update { Scanning }
             false
         } catch (e: SecurityException) {
             Log.d(TAG, "startScanningForDevices: can't start scan: missing SCAN permission")
-            state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+            _state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
             false
         } catch (e: IllegalArgumentException) {
             Log.d(
                 TAG,
                 "startScanningForDevices: can't start scan: somehow the settings can't be built"
             )
-            state.update { Failed(reason = Reason.INCORRECT_CONFIGURATION) }
+            _state.update { Failed(reason = Reason.INCORRECT_CONFIGURATION) }
             false
         } catch (e: Exception) {
             Log.e(TAG, "startScanningForDevices: error, retrying scan", e)
@@ -198,7 +201,7 @@ class NewBleScanner(
             bluetoothLeScanner?.stopScan(scanCallback)
         } catch (e: SecurityException) {
             Log.d(TAG, "stopScanning: missing SCAN permission")
-            state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+            _state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
         } catch (e: Exception) {
             Log.e(TAG, "stopScanning: couldn't stop scan", e)
         }
@@ -208,7 +211,7 @@ class NewBleScanner(
             bluetoothGatt = null
         } catch (e: SecurityException) {
             Log.e(TAG, "stopScanning: missing CONNECT permission", e)
-            state.update {
+            _state.update {
                 Failed(reason = Reason.NO_CONNECT_PERMISSION)
             }
         } catch (e: Exception) {
@@ -218,7 +221,7 @@ class NewBleScanner(
 
     private fun restartScan() {
         Log.d(TAG, "restartScan: restarting scanner")
-        state.update { NewBleScannerState.Idle }
+        _state.update { NewBleScannerState.Idle }
         startScanningForDevices(devices.value)
     }
 
@@ -300,21 +303,21 @@ class NewBleScanner(
                 SCAN_FAILED_ALREADY_STARTED -> {
                     Log.d(TAG, "onScanFailed: scan was already started with same settings")
                     // Reflecting this in our state just in case
-                    state.update { Scanning }
+                    _state.update { Scanning }
                 }
 
                 SCAN_FAILED_APPLICATION_REGISTRATION_FAILED, SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> {
                     // Bluetooth is in a bad state (32+ apps scanning) and needs a power cycle.
                     // Integrate a BluetoothMedic later?
                     Log.d(TAG, "onScanFailed: bluetooth stack is in a bad state")
-                    state.update { Failed(reason = Reason.BLUETOOTH_STACK_BAD_STATE) }
+                    _state.update { Failed(reason = Reason.BLUETOOTH_STACK_BAD_STATE) }
                 }
 
                 SCAN_FAILED_FEATURE_UNSUPPORTED -> {
                     Log.d(TAG, "onScanFailed: scan failed: feature not supported.")
                     // We shouldn't even get to this point. Check feature availability beforehand.
                     // https://stackoverflow.com/a/35275469/20682060
-                    state.update { Failed(reason = Reason.FEATURE_NOT_SUPPORTED) }
+                    _state.update { Failed(reason = Reason.FEATURE_NOT_SUPPORTED) }
                     // No point in restarting the scan here,
                     // only with a different bluetooth adapter maybe
                 }
@@ -336,7 +339,7 @@ class NewBleScanner(
                         start and stop BLE scans repeatedly.
                      */
                     Log.d(TAG, "onScanFailed: scanning too frequently!")
-                    state.update { Failed(reason = Reason.SCANNING_TOO_FREQUENTLY) }
+                    _state.update { Failed(reason = Reason.SCANNING_TOO_FREQUENTLY) }
                     stopScanning()
                     scannerScope.coroutineContext.cancelChildren()
                     scannerScope.launch {
@@ -350,14 +353,14 @@ class NewBleScanner(
 
                 SCAN_FAILED_INTERNAL_ERROR -> {
                     Log.d(TAG, "onScanFailed: internal scan error")
-                    state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
+                    _state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
                     // We can try and restart the scan here
                     restartScan()
                 }
 
                 else -> {
                     Log.d(TAG, "onScanFailed: scan failed with error code $errorCode")
-                    state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
+                    _state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
                     // We can try and restart scan here
                     restartScan()
                 }
@@ -386,7 +389,7 @@ class NewBleScanner(
 
                 BluetoothProfile.STATE_DISCONNECTED -> {
                     Log.d(TAG, "onConnectionStateChange: disconnected")
-                    state.update { Scanning }
+                    _state.update { Scanning }
                     disconnectGatt(gatt)
                     restartScan()
                 }
@@ -434,7 +437,7 @@ class NewBleScanner(
                     TAG,
                     "onCharacteristicChanged: could not read remote rssi: no CONNECT permission"
                 )
-                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+                _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
 
@@ -466,7 +469,7 @@ class NewBleScanner(
                     TAG,
                     "onCharacteristicChanged: could not read remote rssi: no CONNECT permission"
                 )
-                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+                _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
 
@@ -495,7 +498,7 @@ class NewBleScanner(
         override fun onReadRemoteRssi(gatt: BluetoothGatt, rssi: Int, status: Int) {
             super.onReadRemoteRssi(gatt, rssi, status)
             Log.d(TAG, "onReadRemoteRssi: newRssi: $rssi")
-            state.update { NewBleScannerState.Connected(uuid, rssi) }
+            _state.update { NewBleScannerState.Connected(uuid, rssi) }
             currentDeviceFromGatt(gatt)?.let { device ->
                 Log.d(TAG, "onReadRemoteRssi: sending open signal")
                 sendOpenSignal(gatt, device)
@@ -509,7 +512,7 @@ class NewBleScanner(
                 bluetoothLeScanner?.stopScan(scanCallback)
                 if (gatt.device.bondState != BluetoothDevice.BOND_BONDING) {
                     bluetoothGatt = gatt
-                    state.update { NewBleScannerState.Connected(uuid, initialRssi) }
+                    _state.update { NewBleScannerState.Connected(uuid, initialRssi) }
                     // Using a Handler here to avoid a nasty bug on older androids
                     // And ensure that services are discovered on the main thread
                     Handler(Looper.getMainLooper()).post {
@@ -529,7 +532,7 @@ class NewBleScanner(
                     )
                 }
             } catch (e: SecurityException) {
-                state.update {
+                _state.update {
                     Failed(reason = Reason.NO_SCAN_PERMISSION)
                 }
             }
@@ -555,12 +558,12 @@ class NewBleScanner(
             when (connectionStatus) {
                 GATT_CONNECTION_CONGESTED -> {
                     Log.d(TAG, "handleConnectionError: connection is congested")
-                    state.update { Failed(reason = Reason.CONNECTION_CONGESTED) }
+                    _state.update { Failed(reason = Reason.CONNECTION_CONGESTED) }
                 }
 
                 GATT_CONNECTION_TIMEOUT -> {
                     Log.d(TAG, "handleConnectionError: connection timed out")
-                    state.update { Failed(reason = Reason.CONNECTION_FAILED) }
+                    _state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
 
                 GATT_FIRMWARE_ERROR -> {
@@ -568,7 +571,7 @@ class NewBleScanner(
                         TAG, "handleConnectionError: infamous 133 error. " +
                                 "Either a timeout occurred or Android refuses to connect to device."
                     )
-                    state.update { Failed(reason = Reason.CONNECTION_FAILED) }
+                    _state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
             }
             restartScan()
@@ -579,7 +582,7 @@ class NewBleScanner(
             try {
                 gatt.close()
             } catch (e: SecurityException) {
-                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+                _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
 
@@ -588,7 +591,7 @@ class NewBleScanner(
         ) {
             val device = gatt.device ?: run {
                 Log.d(TAG, "tryToAuthorizeDevice: device is null")
-                state.update { Failed(reason = Reason.CONNECTION_FAILED) }
+                _state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 return
             }
             val bondStateReceiver = getBondStateReceiverForDevice(
@@ -612,7 +615,7 @@ class NewBleScanner(
             } catch (e: SecurityException) {
                 Log.d(TAG, "tryToAuthorizeDevice: no connect permission, can't create bond")
                 context.unregisterReceiver(bondStateReceiver)
-                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+                _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
 
@@ -667,7 +670,7 @@ class NewBleScanner(
                     }
                 }
             } catch (e: SecurityException) {
-                state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+                _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
     }
@@ -763,7 +766,7 @@ class NewBleScanner(
         uuid: String,
         rssi: Int
     ) {
-        state.update { Connecting }
+        _state.update { Connecting }
         try {
             bluetoothDevice.connectGatt(
                 context,
@@ -776,11 +779,11 @@ class NewBleScanner(
             )
         } catch (e: SecurityException) {
             Log.e(TAG, "connectDeviceGatt: missing BLUETOOTH_CONNECT permission", e)
-            state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
+            _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
         }
     }
 
-    private fun isBusy() = state is Busy
+    private fun isBusy() = _state.value is Busy
 
     /**
      * A backwards compatible approach of obtaining a parcelable extra from an [Intent] object.
