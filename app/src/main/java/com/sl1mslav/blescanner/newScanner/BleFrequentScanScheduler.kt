@@ -10,15 +10,15 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Collections
-import kotlin.jvm.Throws
 
-class BleFrequentScanScheduler {
+class BleFrequentScanScheduler(
+    private val onMissingScanPermission: () -> Unit
+) {
 
     private val schedulingScope: CoroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
     private val operationsLaunched = Collections.synchronizedList<Job>(mutableListOf())
 
-    @Throws(SecurityException::class)
     fun scheduleScan(
         scanner: BluetoothLeScanner,
         filters: List<ScanFilter>,
@@ -30,11 +30,15 @@ class BleFrequentScanScheduler {
             if (operationsCurrentlyLaunched >= SCANS_PER_PERIOD) {
                 operationsLaunched[operationsCurrentlyLaunched - SCANS_PER_PERIOD].join()
             }
-            scanner.startScan(
-                filters,
-                settings,
-                callback
-            )
+            try {
+                scanner.startScan(
+                    filters,
+                    settings,
+                    callback
+                )
+            } catch (e: SecurityException) {
+                onMissingScanPermission()
+            }
             delay(EXCESSIVE_SCANNING_PERIOD_SECONDS)
             operationsLaunched.removeFirstOrNull()
         }
