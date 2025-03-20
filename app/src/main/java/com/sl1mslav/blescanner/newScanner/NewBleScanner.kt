@@ -13,7 +13,9 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -21,17 +23,28 @@ import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.ParcelUuid
 import android.os.Parcelable
 import android.util.Log
 import androidx.core.content.ContextCompat
+import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
+import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
 import com.sl1mslav.blescanner.encryption.encryptDeviceCommand
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Connecting
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed.Reason
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Scanning
 import com.sl1mslav.blescanner.scanner.model.BleDevice
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.launch
 import java.util.UUID
 
 
@@ -43,12 +56,22 @@ class NewBleScanner(
     private val context: Context
 ) : ScanCallback() {
 
+    private val scannerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+
     private val state = MutableStateFlow<NewBleScannerState>(NewBleScannerState.Idle)
     private val devices = MutableStateFlow<List<BleDevice>>(emptyList())
+
+    private val scanScheduler = BleFrequentScanScheduler()
 
     private var bluetoothGatt: BluetoothGatt? = null
     private var bluetoothCharacteristic: BluetoothGattCharacteristic? = null
     private var bluetoothCharacteristicNotification: BluetoothGattCharacteristic? = null
+
+    private val deviceCachingService = DevicesPrefsCachingService(context)
+
+    private val bleAvailability = BleAvailabilityObserver
+        .getInstance(context)
+        .bleAvailability
 
     private val bluetoothManager by lazy {
         ContextCompat.getSystemService(
@@ -57,7 +80,158 @@ class NewBleScanner(
         )
     }
 
-    private val bluetoothLeScanner get() = bluetoothManager?.adapter?.bluetoothLeScanner
+    private val bluetoothLeScanner
+        get() = bluetoothManager
+            ?.adapter
+            ?.bluetoothLeScanner
+
+    /**
+     * Starts scanning for cached devices.
+     * The scan is skipped if no devices are cached, or if
+     * scanning for same devices is already in effect.
+     */
+    fun start() {
+        val cachedDevices = deviceCachingService.getSavedDevices()
+        if (cachedDevices.isEmpty()) {
+            Log.d(TAG, "start: skipping scan - there are no cached devices")
+            return
+        }
+
+        if (
+            devices.value.map { device -> device.uuid }.sortedDescending() ==
+            cachedDevices.map { device -> device.uuid }.sortedDescending()
+        ) {
+            Log.d(TAG, "start: skipping scan - scanning for same devices is in progress")
+            return
+        }
+
+        Log.d(TAG, "start: start scanning for devices ${cachedDevices.joinToString { it.uuid }}")
+        devices.update { cachedDevices }
+
+        observeBleAvailability()
+        startScanningForDevices(cachedDevices)
+    }
+
+    fun stop() {
+        stopScanning()
+        scannerScope.coroutineContext.cancelChildren()
+    }
+
+    private fun observeBleAvailability() {
+        bleAvailability.onEach { bleState ->
+            when {
+                !bleState.isBluetoothEnabled && !bleState.isLocationEnabled -> {
+                    state.update {
+                        Failed(
+                            reason = Reason.BLUETOOTH_AND_LOCATION_OFF
+                        )
+                    }
+                    stopScanning()
+                }
+
+                !bleState.isBluetoothEnabled -> {
+                    state.update {
+                        Failed(reason = Reason.BLUETOOTH_OFF)
+                    }
+                    stopScanning()
+                }
+
+                !bleState.isLocationEnabled -> {
+                    state.update {
+                        Failed(reason = Reason.LOCATION_OFF)
+                    }
+                    stopScanning()
+                }
+
+                else -> {
+                    // Because we're collecting a StateFlow, we understand that data
+                    // has definitely changed since last value;
+                    // Since everything is ON now, we safely restart the scan.
+                    restartScan()
+                }
+            }
+        }.launchIn(scannerScope)
+    }
+
+    private tailrec fun startScanningForDevices(devices: List<BleDevice>) {
+        if (isBusy()) {
+            Log.d(TAG, "startScanningForDevices: can't start scan; connection is in progress")
+            return
+        }
+        val shouldTryAgain = try {
+            val scanSettings = ScanSettings.Builder()
+                .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
+                .build()
+            Log.d(TAG, "startScanningForDevices: scheduling scan")
+            bluetoothLeScanner?.let { scanner ->
+                scanScheduler.scheduleScan(
+                    scanner = scanner,
+                    filters = createSearchFiltersForScanning(devices),
+                    settings = scanSettings,
+                    callback = scanCallback
+                )
+            }
+            state.update { Scanning }
+            false
+        } catch (e: SecurityException) {
+            Log.d(TAG, "startScanningForDevices: can't start scan: missing SCAN permission")
+            state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+            false
+        } catch (e: IllegalArgumentException) {
+            Log.d(
+                TAG,
+                "startScanningForDevices: can't start scan: somehow the settings can't be built"
+            )
+            state.update { Failed(reason = Reason.INCORRECT_CONFIGURATION) }
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "startScanningForDevices: error, retrying scan", e)
+            true
+        }
+        if (shouldTryAgain) {
+            startScanningForDevices(devices)
+        }
+    }
+
+    private fun stopScanning() {
+        try {
+            bluetoothLeScanner?.stopScan(scanCallback)
+        } catch (e: SecurityException) {
+            Log.d(TAG, "stopScanning: missing SCAN permission")
+            state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+        } catch (e: Exception) {
+            Log.e(TAG, "stopScanning: couldn't stop scan", e)
+        }
+
+        try {
+            bluetoothGatt?.close()
+            bluetoothGatt = null
+        } catch (e: SecurityException) {
+            Log.e(TAG, "stopScanning: missing CONNECT permission", e)
+            state.update {
+                Failed(reason = Reason.NO_CONNECT_PERMISSION)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "stopScanning: couldn't close GATT client", e)
+        }
+    }
+
+    private fun restartScan() {
+        Log.d(TAG, "restartScan: restarting scanner")
+        state.update { NewBleScannerState.Idle }
+        startScanningForDevices(devices.value)
+    }
+
+    private fun createSearchFiltersForScanning(
+        devices: List<BleDevice>
+    ): List<ScanFilter> {
+        return devices.map { device ->
+            ScanFilter.Builder().setServiceUuid(
+                ParcelUuid.fromString(device.uuid),
+                PARCEL_UUID_MASK
+            ).build()
+        }
+    }
 
     private fun getBondStateReceiverForDevice(
         uuid: String,
@@ -147,8 +321,7 @@ class NewBleScanner(
 
                 SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> {
                     /*
-                        How did we even get here? Wasn't a safe scanner used?
-                        This is bad. Repercussions vary across vendors.
+                        Пизда. Как мы вообще сюда попали?
 
                         If your app exceeded this limit, the scan would appear to have started,
                         but no scan results would be delivered to your callback body.
@@ -162,22 +335,31 @@ class NewBleScanner(
                         your users about whether your code or your users can potentially
                         start and stop BLE scans repeatedly.
                      */
+                    Log.d(TAG, "onScanFailed: scanning too frequently!")
                     state.update { Failed(reason = Reason.SCANNING_TOO_FREQUENTLY) }
-                    // todo try to stop scan after 30secs and start again
+                    stopScanning()
+                    scannerScope.coroutineContext.cancelChildren()
+                    scannerScope.launch {
+                        Log.d(TAG, "onScanFailed: let's wait out the cooldown...")
+                        delay(TOO_FREQUENT_SCAN_COOLDOWN)
+                        Log.d(TAG, "onScanFailed: cooldown passed, restarting the scan")
+                        observeBleAvailability()
+                        restartScan()
+                    }
                 }
 
                 SCAN_FAILED_INTERNAL_ERROR -> {
                     Log.d(TAG, "onScanFailed: internal scan error")
                     state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
                     // We can try and restart the scan here
-                    // todo restart scan
+                    restartScan()
                 }
 
                 else -> {
                     Log.d(TAG, "onScanFailed: scan failed with error code $errorCode")
                     state.update { Failed(reason = Reason.SCAN_FAILED_UNKNOWN_ERROR) }
                     // We can try and restart scan here
-                    // todo restart scan
+                    restartScan()
                 }
             }
         }
@@ -206,7 +388,7 @@ class NewBleScanner(
                     Log.d(TAG, "onConnectionStateChange: disconnected")
                     state.update { Scanning }
                     disconnectGatt(gatt)
-                    // todo restart scan
+                    restartScan()
                 }
 
                 else -> {
@@ -383,18 +565,13 @@ class NewBleScanner(
 
                 GATT_FIRMWARE_ERROR -> {
                     Log.d(
-                        TAG, "handleConnectionError: famous 133 error. " +
+                        TAG, "handleConnectionError: infamous 133 error. " +
                                 "Either a timeout occurred or Android refuses to connect to device."
                     )
                     state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
-
-                else -> {
-                    // Reflecting disconnection in state
-                    state.update { Scanning }
-                }
             }
-            // todo restart scan here
+            restartScan()
         }
 
         private fun disconnectGatt(gatt: BluetoothGatt) {
@@ -514,7 +691,7 @@ class NewBleScanner(
                 Log.d(TAG, "sendOpenSignal: result status = $result")
                 if (result == BluetoothStatusCodes.ERROR_GATT_WRITE_REQUEST_BUSY) {
                     Log.d(TAG, "sendOpenSignal: device is busy! Restarting scanner.")
-                    // todo restart scanner???
+                    restartScan()
                 }
             } else {
                 @Suppress("DEPRECATION")
@@ -523,7 +700,6 @@ class NewBleScanner(
                 if (!gatt.writeCharacteristic(characteristic)) {
                     Log.d(TAG, "sendOpenSignal: could not write characteristic on Android < 14")
                 }
-
             }
         } catch (e: SecurityException) {
             Log.e(TAG, "sendOpenSignal: missing permission", e)
@@ -631,5 +807,11 @@ class NewBleScanner(
 
         const val BLE_DEFAULT_CHARACTERISTIC_UUID = "0000f401-0000-1000-8000-00805f9b34fb"
         const val BLE_DEFAULT_NOTIFICATION_UUID = "0000f402-0000-1000-8000-00805f9b34fb"
+
+        // UUID mask to only search for 16 bit UUIDs
+        const val SERVICE_UUID_MASK: String = "FFFFFFFF-FFFF-FFFF-FFFF-ffffffffffff"
+        val PARCEL_UUID_MASK: ParcelUuid = ParcelUuid.fromString(SERVICE_UUID_MASK)
+
+        const val TOO_FREQUENT_SCAN_COOLDOWN = 30_000L
     }
 }
