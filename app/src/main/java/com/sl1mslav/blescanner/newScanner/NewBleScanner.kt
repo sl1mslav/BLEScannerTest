@@ -78,12 +78,16 @@ class NewBleScanner(
                     receivedDevice.address == device.address &&
                     bondState == BluetoothDevice.BOND_BONDED
                 ) {
+                    Log.d(TAG, "bondStateReceiver: bond successful, let's connectGatt again")
                     context.unregisterReceiver(this)
                     tryConnectToDevice(
                         uuid = uuid,
                         rssi = initialRssi,
                         bluetoothDevice = receivedDevice
                     )
+                } else if (bondState == BluetoothDevice.BOND_NONE) {
+                    Log.d(TAG, "bondStateReceiver: stopped bonding. Let's unregister this now")
+                    context.unregisterReceiver(this)
                 }
             }
         }
@@ -98,7 +102,7 @@ class NewBleScanner(
             }
             val foundUuid = scanResult
                 .scanRecord
-                ?.serviceUuids?.singleOrNull()?.uuid?.toString()
+                ?.serviceUuids?.firstOrNull()?.uuid?.toString()
                 ?: run {
                     Log.d(TAG, "onScanResult: service uuid is null")
                     return
@@ -324,7 +328,7 @@ class NewBleScanner(
                 if (gatt.device.bondState != BluetoothDevice.BOND_BONDING) {
                     bluetoothGatt = gatt
                     state.update { NewBleScannerState.Connected(uuid, initialRssi) }
-                    // Using a Handler here to avoid nasty bug on older androids
+                    // Using a Handler here to avoid a nasty bug on older androids
                     // And ensure that services are discovered on the main thread
                     Handler(Looper.getMainLooper()).post {
                         val couldDiscoverServices = gatt.discoverServices()
@@ -380,7 +384,7 @@ class NewBleScanner(
                 GATT_FIRMWARE_ERROR -> {
                     Log.d(
                         TAG, "handleConnectionError: famous 133 error. " +
-                            "Either a timeout occurred or Android refuses to connect to device."
+                                "Either a timeout occurred or Android refuses to connect to device."
                     )
                     state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
@@ -422,7 +426,12 @@ class NewBleScanner(
                 ContextCompat.RECEIVER_NOT_EXPORTED
             )
             try {
-                device.createBond()
+                Log.d(TAG, "tryToAuthorizeDevice: beginning bonding process")
+                val hasBondingStarted = device.createBond()
+                if (!hasBondingStarted) {
+                    Log.d(TAG, "tryToAuthorizeDevice: could not start bonding process")
+                    context.unregisterReceiver(bondStateReceiver)
+                }
             } catch (e: SecurityException) {
                 Log.d(TAG, "tryToAuthorizeDevice: no connect permission, can't create bond")
                 context.unregisterReceiver(bondStateReceiver)
@@ -458,6 +467,10 @@ class NewBleScanner(
 
         private fun enableNotifications(gatt: BluetoothGatt) {
             // Subscribe to characteristic's updates
+            if (bluetoothCharacteristicNotification == null) {
+                Log.d(TAG, "enableNotifications: couldn't enable notifications as char is null")
+                return
+            }
             try {
                 gatt.setCharacteristicNotification(
                     bluetoothCharacteristicNotification,
@@ -476,7 +489,6 @@ class NewBleScanner(
                         bluetoothGatt?.writeDescriptor(descriptor)
                     }
                 }
-
             } catch (e: SecurityException) {
                 state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
@@ -487,7 +499,7 @@ class NewBleScanner(
         gatt: BluetoothGatt,
         device: BleDevice
     ) {
-        Log.d(TAG, "sendOpenSignal: checking characteristic and gatt for null")
+        Log.d(TAG, "sendOpenSignal: checking characteristic for null")
         val characteristic = bluetoothCharacteristic ?: return
         Log.d(TAG, "sendOpenSignal: check passed")
         val command = encryptDeviceCommand(bleDevice = device)
