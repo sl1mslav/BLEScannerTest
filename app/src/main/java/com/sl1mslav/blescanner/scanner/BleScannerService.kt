@@ -10,6 +10,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.ServiceCompat
 import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
+import com.sl1mslav.blescanner.logger.Logger
 import com.sl1mslav.blescanner.newScanner.NewBleScanner
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed.Reason
@@ -56,13 +57,13 @@ class BleScannerService: Service() {
     // --------------------------- Инициализация сервиса -------------------------- //
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        Log.d(TAG, "onStartCommand")
+        Logger.log("onStartCommand")
         startServiceAsFGS()
         return super.onStartCommand(intent, flags, startId)
     }
 
     private fun startServiceAsFGS() {
-        Log.d(TAG, "startServiceAsFGS")
+        Logger.log("startServiceAsFGS")
         try {
             ServiceCompat.startForeground(
                 this,
@@ -99,8 +100,9 @@ class BleScannerService: Service() {
     // -------------------------  Главная работа сервиса -------------------------- //
 
     override fun onCreate() {
-        Log.d(TAG, "onCreate")
+        Logger.log("onCreate")
         super.onCreate()
+        wakeLockWorkManager.start()
         // startWakeLockWorker() todo возможно этот рестарт всё-таки нужен,  но пока уберём
         observeBluetoothScannerState()
         scanForKnownDevices()
@@ -206,7 +208,7 @@ class BleScannerService: Service() {
     // ----------------------------- Очистка сервиса ------------------------------ //
 
     override fun onDestroy() {
-        Log.d(TAG, "onDestroy")
+        Logger.log("onDestroy")
         super.onDestroy()
         scannerScope.coroutineContext.cancelChildren()
         wakeLockWorkManager.stop()
