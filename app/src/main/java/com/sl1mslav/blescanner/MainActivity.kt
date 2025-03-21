@@ -5,6 +5,7 @@ import android.content.ComponentName
 import android.content.Intent
 import android.content.ServiceConnection
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.os.PowerManager
@@ -23,14 +24,18 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.core.app.ActivityCompat
+import androidx.core.content.FileProvider
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
 import com.sl1mslav.blescanner.blePermissions.AutoStartHelper
 import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
+import com.sl1mslav.blescanner.logger.Logger
 import com.sl1mslav.blescanner.scanner.BleScannerService
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
+import java.io.File
+import java.util.Locale
 
 
 class MainActivity : ComponentActivity() {
@@ -115,6 +120,9 @@ class MainActivity : ComponentActivity() {
                         },
                         onClickAutoStart = {
                             AutoStartHelper.instance.getAutoStartPermission(this)
+                        },
+                        onClickSendLogs = {
+                            shareLogsViaTelegram()
                         }
                     )
                 }
@@ -219,6 +227,36 @@ class MainActivity : ComponentActivity() {
         val skudIdInHex = skudId.toString(radix = HEX_RADIX)
         val skudIdPart = skudIdInHex.padStart(length = SKUD_ID_HEX_LENGTH, padChar = '0')
         return SKUD_UUID_PREFIX + skudIdPart
+    }
+
+    private fun shareLogsViaTelegram() {
+        val fileUri: Uri = FileProvider.getUriForFile(
+            this,
+            "${packageName}.fileprovider",
+            File(cacheDir, Logger.LOG_FILE_NAME)
+        )
+        val sendIntent = Intent().apply {
+            action = Intent.ACTION_SEND
+            type = "*/*"
+            putExtra(Intent.EXTRA_STREAM, fileUri)
+            putExtra(Intent.EXTRA_SUBJECT, getLogsHeader())
+            setPackage("org.telegram.messenger")
+            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        startActivity(sendIntent)
+    }
+
+    private fun getLogsHeader() = buildString {
+        appendLine("Android version:	${Build.VERSION.RELEASE}")
+        appendLine("Device:	${getDeviceName()}".trimIndent())
+    }
+
+    private fun getDeviceName(): String {
+        val manufacturer = Build.MANUFACTURER
+        val model = Build.MODEL
+        return if (model.lowercase(Locale.ROOT)
+                .startsWith(manufacturer.lowercase(Locale.ROOT))
+        ) model ?: String() else "${manufacturer ?: String()} $model"
     }
 
     companion object {

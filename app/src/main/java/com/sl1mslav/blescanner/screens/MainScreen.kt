@@ -12,10 +12,16 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.Button
+import androidx.compose.material3.FilledIconButton
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
@@ -40,7 +46,8 @@ fun MainScreen(
     onCheckPermission: (BlePermission) -> Unit,
     onCheckDozeMode: () -> Unit,
     onClickAutoStart: () -> Unit,
-    onClickScannerButton: () -> Unit
+    onClickScannerButton: () -> Unit,
+    onClickSendLogs: () -> Unit
 ) {
     Column(
         modifier = modifier.verticalScroll(rememberScrollState()),
@@ -137,18 +144,29 @@ fun MainScreen(
             }
         }
         Spacer(modifier = Modifier.height(32.dp))
-        Button(
-            onClick = onClickScannerButton,
-            enabled = state.isServiceRunning || (state.isLocationEnabled &&
-                    state.isBluetoothEnabled &&
-                    state.permissions.all { it.isGranted })
-        ) {
-            val text = if (state.isServiceRunning) {
-                "Остановить сканнер"
-            } else {
-                "Запустить сканнер"
+        Row {
+            Button(
+                onClick = onClickScannerButton,
+                enabled = state.isServiceRunning || (state.isLocationEnabled &&
+                        state.isBluetoothEnabled &&
+                        state.permissions.all { it.isGranted })
+            ) {
+                val text = if (state.isServiceRunning) {
+                    "Остановить сканнер"
+                } else {
+                    "Запустить сканнер"
+                }
+                Text(text = text)
             }
-            Text(text = text)
+            Spacer(modifier = Modifier.width(32.dp))
+            FilledIconButton(onClick = onClickSendLogs) {
+                Icons.Default.Share
+                Icon(
+                    modifier = Modifier.size(20.dp),
+                    imageVector = Icons.Default.Send,
+                    contentDescription = null
+                )
+            }
         }
     }
 }
@@ -216,7 +234,8 @@ private fun MainScreenPreview() {
             onEnableBluetooth = {},
             onEnableLocation = {},
             onCheckDozeMode = {},
-            onClickAutoStart = {}
+            onClickAutoStart = {},
+            onClickSendLogs = {}
         )
     }
 }

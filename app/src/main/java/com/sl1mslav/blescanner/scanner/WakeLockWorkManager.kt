@@ -10,6 +10,7 @@ import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
+import com.sl1mslav.blescanner.logger.Logger
 import kotlinx.coroutines.flow.Flow
 import java.util.concurrent.TimeUnit
 
@@ -24,14 +25,14 @@ class WakeLockWorkManager(
     ).build()
 
     fun start(): Flow<WorkInfo?> {
-        Log.d(TAG, "start work")
+        Logger.log("start work")
         workManager.cancelWorkById(periodicWorkRequest.id)
         workManager.enqueue(periodicWorkRequest)
         return workManager.getWorkInfoByIdFlow(periodicWorkRequest.id)
     }
 
     fun stop() {
-        Log.d(TAG, "stop work")
+        Logger.log("stop work")
         workManager.cancelWorkById(periodicWorkRequest.id)
     }
 
@@ -47,7 +48,7 @@ class WakeLockWorkManager(
                 getWakeLockTag()
             )
             wakeLock.acquire(WAKE_LOCK_TIMEOUT)
-            Log.d(TAG, "doWork: successfuly acquired wakelock")
+            Logger.log("successfuly acquired wakelock")
             Result.success()
         } catch (e: Exception) {
             Log.e(TAG, e.stackTraceToString())
