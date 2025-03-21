@@ -161,9 +161,13 @@ class BleScannerService: Service() {
                 notificationTitle = "Подключаемся"
                 notificationText = "Пытаемся соединиться с устройством"
             }
+            NewBleScannerState.Reconnecting -> {
+                notificationTitle = "Переподключаемся"
+                notificationText = "Создаём пару с устройством"
+            }
             is NewBleScannerState.Connected -> {
-                notificationTitle = "Подключились к устройству"
-                notificationText = "Пытаемся отослать сигнал открытия. Текущий RSSI: ${state.rssi}"
+                notificationTitle = "Пытаемся открыть домофон"
+                notificationText = "Текущий RSSI: ${state.rssi}"
             }
             is NewBleScannerState.Failed -> {
                 notificationTitle = "Произошла ошибка"
@@ -175,11 +179,11 @@ class BleScannerService: Service() {
                     Reason.BLUETOOTH_AND_LOCATION_OFF -> "Пожалуйста, включите Bluetooth и геолокацию"
                     Reason.NO_SCAN_PERMISSION -> "Нет разрешения на скан"
                     Reason.NO_CONNECT_PERMISSION -> "Нет разрешения на коннект"
-                    Reason.BLUETOOTH_STACK_BAD_STATE -> "Стек Bluetooth забит. Попробуйте перезагрузить Bluetooth или телефон."
+                    Reason.BLUETOOTH_STACK_BAD_STATE -> "Перезагрузите Bluetooth или телефон."
                     Reason.FEATURE_NOT_SUPPORTED -> "Эмм сорян но фича не поддерживается))) лал))))"
                     Reason.SCANNING_TOO_FREQUENTLY -> "Слишком часто сканим!!! Галя отмена!!!!!!!!!!"
                     Reason.SCAN_FAILED_UNKNOWN_ERROR -> "Тут даже я хз"
-                    Reason.CONNECTION_CONGESTED -> "Соединение забито другими приложениями, оставь только УД на телефоне и удали всё остальное."
+                    Reason.CONNECTION_CONGESTED -> "Соединение забито другими прилами"
                 }
             }
         }

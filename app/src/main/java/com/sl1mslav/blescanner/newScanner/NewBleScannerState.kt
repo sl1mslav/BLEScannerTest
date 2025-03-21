@@ -7,6 +7,8 @@ sealed interface NewBleScannerState {
 
     data object Connecting: NewBleScannerState, Busy
 
+    data object Reconnecting: NewBleScannerState
+
     data class Connected(
         val uuid: String,
         val rssi: Int

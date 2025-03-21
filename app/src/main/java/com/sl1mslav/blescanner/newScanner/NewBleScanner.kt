@@ -270,6 +270,7 @@ class NewBleScanner(
                 } else if (bondState == BluetoothDevice.BOND_NONE) {
                     Log.d(TAG, "bondStateReceiver: stopped bonding. Let's unregister this now")
                     context.unregisterReceiver(this)
+                    _state.update { Scanning }
                 }
             }
         }
@@ -506,7 +507,9 @@ class NewBleScanner(
             _state.update { NewBleScannerState.Connected(uuid, rssi) }
             currentDeviceFromGatt(gatt)?.let { device ->
                 Log.d(TAG, "onReadRemoteRssi: sending open signal")
-                sendOpenSignal(gatt, device)
+                if (rssi > device.preferredRssi) {
+                    sendOpenSignal(gatt, device)
+                }
             } ?: run {
                 Log.d(TAG, "onReadRemoteRssi: couldn't send open signal: device is null")
             }
@@ -612,10 +615,12 @@ class NewBleScanner(
             )
             try {
                 Log.d(TAG, "tryToAuthorizeDevice: beginning bonding process")
+                _state.update { NewBleScannerState.Reconnecting }
                 val hasBondingStarted = device.createBond()
                 if (!hasBondingStarted) {
                     Log.d(TAG, "tryToAuthorizeDevice: could not start bonding process")
                     context.unregisterReceiver(bondStateReceiver)
+                    restartScan()
                 }
             } catch (e: SecurityException) {
                 Log.d(TAG, "tryToAuthorizeDevice: no connect permission, can't create bond")
@@ -753,8 +758,7 @@ class NewBleScanner(
         // Here I can add logic for connecting to a GATT server in advance. That would require
         // checking for rssi later, right before trying to open the device.
         // Some kind of CONNECTION_THRESHOLD constant, perhaps?
-        val preferredRssi = foundDevice.rssi
-        if (rssi > preferredRssi) {
+        if (rssi < foundDevice.preferredRssi) {
             Log.d(TAG, "tryConnectToDevice: won't connect to device $uuid: signal too weak")
             return
         }
