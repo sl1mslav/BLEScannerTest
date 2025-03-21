@@ -19,6 +19,11 @@ class BleFrequentScanScheduler(
 
     private val operationsLaunched = Collections.synchronizedList<Job>(mutableListOf())
 
+    /**
+     * Schedules a BLE scan. If there were less than 5 scans run in the last 30 seconds,
+     * runs the scan instantly. If there 5+ scans tried in the last 30 seconds, schedules a scan
+     * to run right after a time slot is freed for scanning.
+     */
     fun scheduleScan(
         scanner: BluetoothLeScanner,
         filters: List<ScanFilter>,
@@ -39,14 +44,14 @@ class BleFrequentScanScheduler(
             } catch (e: SecurityException) {
                 onMissingScanPermission()
             }
-            delay(EXCESSIVE_SCANNING_PERIOD_SECONDS)
+            delay(EXCESSIVE_SCANNING_PERIOD_MS)
             operationsLaunched.removeFirstOrNull()
         }
         operationsLaunched.add(job)
     }
 
     private companion object {
-        const val EXCESSIVE_SCANNING_PERIOD_SECONDS = 30_000L
+        const val EXCESSIVE_SCANNING_PERIOD_MS = 30_000L
         const val SCANS_PER_PERIOD = 5
     }
 }
