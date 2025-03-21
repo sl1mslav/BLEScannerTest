@@ -26,14 +26,11 @@ import androidx.core.app.ActivityCompat
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
 import com.sl1mslav.blescanner.blePermissions.AutoStartHelper
 import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
-import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.BleScannerService
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import com.sl1mslav.blescanner.screens.BlePermission
 import com.sl1mslav.blescanner.screens.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
-import kotlin.math.abs
-import kotlin.math.roundToInt
 
 
 class MainActivity : ComponentActivity() {
@@ -62,7 +59,7 @@ class MainActivity : ComponentActivity() {
             val uuid = getSkudUuid(skudId = 111383)
             val hardCodedDevice = BleDevice(
                 uuid = uuid,
-                rssi = -50,
+                preferredRssi = -55,
                 charData = byteArrayOf(),
                 key = "g$key".toByteArray(),
                 bleCode = bleCode.toByteArray()

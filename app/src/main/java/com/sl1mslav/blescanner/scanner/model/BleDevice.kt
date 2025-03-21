@@ -2,7 +2,7 @@ package com.sl1mslav.blescanner.scanner.model
 
 data class BleDevice(
     val uuid: String,
-    val rssi: Int,
+    val preferredRssi: Int,
     val isConnected: Boolean = false,
     var charData: ByteArray,
     val key: ByteArray,
@@ -15,7 +15,7 @@ data class BleDevice(
         other as BleDevice
 
         if (uuid != other.uuid) return false
-        if (rssi != other.rssi) return false
+        if (preferredRssi != other.preferredRssi) return false
         if (isConnected != other.isConnected) return false
         if (!charData.contentEquals(other.charData)) return false
         if (!key.contentEquals(other.key)) return false
@@ -26,7 +26,7 @@ data class BleDevice(
 
     override fun hashCode(): Int {
         var result = uuid.hashCode()
-        result = 31 * result + rssi
+        result = 31 * result + preferredRssi
         result = 31 * result + isConnected.hashCode()
         result = 31 * result + charData.contentHashCode()
         result = 31 * result + key.contentHashCode()

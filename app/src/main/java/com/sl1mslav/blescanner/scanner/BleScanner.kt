@@ -197,10 +197,10 @@ class BleScanner(
             super.onReadRemoteRssi(gatt, rssi, status)
             Log.d(TAG, "onReadRemoteRssi: newRssi: $rssi")
             updateCurrentBleDevice(gatt) {
-                val newDevice = it.copy(rssi = rssi)
+                val newDevice = it.copy(preferredRssi = rssi)
                 Log.d(TAG, "onReadRemoteRssi: set new device rssi: $rssi")
                 Log.d(TAG, "onReadRemoteRssi: new device connected: ${newDevice.isConnected}")
-                if (newDevice.rssi >= targetRssi && newDevice.isConnected) {
+                if (newDevice.preferredRssi >= targetRssi && newDevice.isConnected) {
                     sendOpenSignal(newDevice)
                 }
                 newDevice
