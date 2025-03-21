@@ -46,12 +46,6 @@ class MainActivity : ComponentActivity() {
         viewModel.onNewPermissions(getPermissionsState())
     }
 
-    private val multiplePermissionRequester = registerForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) {
-        viewModel.onNewPermissions(getPermissionsState())
-    }
-
     private var scannerService: BleScannerService? = null
     private var isServiceBound: Boolean = false
     private val serviceConnection = object : ServiceConnection {

@@ -3,7 +3,6 @@ package com.sl1mslav.blescanner.scanner
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
-import android.util.Log
 import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
 import com.sl1mslav.blescanner.logger.Logger
 

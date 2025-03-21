@@ -7,7 +7,6 @@ import android.content.pm.ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
-import android.util.Log
 import androidx.core.app.ServiceCompat
 import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
 import com.sl1mslav.blescanner.logger.Logger
@@ -218,7 +217,6 @@ class BleScannerService: Service() {
     // ---------------------------------------------------------------------------- //
 
     companion object {
-        private const val TAG = "BleScannerService"
         private const val SERVICE_NOTIFICATION_ID = 1337
         private const val FOREGROUND_SERVICE_TYPE_DEFAULT = 0
     }
