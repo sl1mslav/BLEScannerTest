@@ -506,8 +506,8 @@ class NewBleScanner(
             Logger.log("newRssi: $rssi")
             _state.update { NewBleScannerState.Connected(uuid, rssi) }
             currentDeviceFromGatt(gatt)?.let { device ->
-                Logger.log("sending open signal")
                 if (rssi > device.preferredRssi) {
+                    Logger.log("sending open signal")
                     sendOpenSignal(gatt, device)
                 }
             } ?: run {
