@@ -4,6 +4,7 @@ import android.bluetooth.le.BluetoothLeScanner
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanSettings
+import com.sl1mslav.blescanner.logger.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -30,12 +31,14 @@ class BleFrequentScanScheduler(
         settings: ScanSettings,
         callback: ScanCallback
     ) {
+        val operationsCurrentlyLaunched = operationsLaunched.size
         val job = schedulingScope.launch {
-            val operationsCurrentlyLaunched = operationsLaunched.size
             if (operationsCurrentlyLaunched >= SCANS_PER_PERIOD) {
+                Logger.log("over the limit!")
                 operationsLaunched[operationsCurrentlyLaunched - SCANS_PER_PERIOD].join()
             }
             try {
+                Logger.log("starting scan!")
                 scanner.startScan(
                     filters,
                     settings,
