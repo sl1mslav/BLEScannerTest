@@ -65,13 +65,6 @@ class NewBleScanner(
 
     private val devices = MutableStateFlow<List<BleDevice>>(emptyList())
 
-    private val scanScheduler = BleFrequentScanScheduler(
-        onMissingScanPermission = {
-            Logger.log("error while scheduling scan - no SCAN permission")
-            _state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
-        }
-    )
-
     private var bluetoothGatt: BluetoothGatt? = null
     private var bluetoothCharacteristic: BluetoothGattCharacteristic? = null
     private var bluetoothCharacteristicNotification: BluetoothGattCharacteristic? = null
@@ -173,11 +166,15 @@ class NewBleScanner(
                 .build()
             Logger.log("scheduling scan")
             bluetoothLeScanner?.let { scanner ->
-                scanScheduler.scheduleScan(
+                BleSafeScanScheduler.scheduleScan(
                     scanner = scanner,
                     filters = createSearchFiltersForScanning(devices),
                     settings = scanSettings,
-                    callback = scanCallback
+                    callback = scanCallback,
+                    onMissingScanPermission = {
+                        Logger.log("error while scheduling scan - no SCAN permission")
+                        _state.update { Failed(reason = Reason.NO_SCAN_PERMISSION) }
+                    }
                 )
             }
             _state.update { Scanning }

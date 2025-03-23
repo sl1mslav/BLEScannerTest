@@ -12,9 +12,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.Collections
 
-class BleFrequentScanScheduler(
-    private val onMissingScanPermission: () -> Unit
-) {
+object BleSafeScanScheduler {
 
     private val schedulingScope: CoroutineScope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -29,7 +27,8 @@ class BleFrequentScanScheduler(
         scanner: BluetoothLeScanner,
         filters: List<ScanFilter>,
         settings: ScanSettings,
-        callback: ScanCallback
+        callback: ScanCallback,
+        onMissingScanPermission: () -> Unit
     ) {
         val operationsCurrentlyLaunched = operationsLaunched.size
         val job = schedulingScope.launch {
@@ -53,8 +52,6 @@ class BleFrequentScanScheduler(
         operationsLaunched.add(job)
     }
 
-    private companion object {
-        const val EXCESSIVE_SCANNING_PERIOD_MS = 30_000L
-        const val SCANS_PER_PERIOD = 5
-    }
+    private const val EXCESSIVE_SCANNING_PERIOD_MS = 30_000L
+    private const val SCANS_PER_PERIOD = 5
 }
