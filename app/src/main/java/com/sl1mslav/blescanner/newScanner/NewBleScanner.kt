@@ -379,6 +379,7 @@ class NewBleScanner(
 
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
+            Logger.log("status = $status")
             if (status != BluetoothGatt.GATT_SUCCESS) {
                 handleConnectionError(
                     gatt = gatt,
@@ -388,6 +389,7 @@ class NewBleScanner(
             }
             when (newState) {
                 BluetoothProfile.STATE_CONNECTED -> {
+                    Logger.log("connected successfully! let's handle the connection")
                     handleSuccessfulConnection(gatt)
                 }
 
@@ -408,6 +410,7 @@ class NewBleScanner(
         override fun onServicesDiscovered(gatt: BluetoothGatt, status: Int) {
             super.onServicesDiscovered(gatt, status)
             if (status == BluetoothGatt.GATT_SUCCESS) {
+                Logger.log("successfully discovered services!")
                 handleDiscoveredServices(gatt)
             } else {
                 Logger.log(
@@ -514,13 +517,13 @@ class NewBleScanner(
 
         private fun handleSuccessfulConnection(gatt: BluetoothGatt) {
             try {
-                bluetoothLeScanner?.stopScan(scanCallback)
                 if (gatt.device.bondState != BluetoothDevice.BOND_BONDING) {
                     bluetoothGatt = gatt
                     _state.update { NewBleScannerState.Connected(uuid, initialRssi) }
                     // Using a Handler here to avoid a nasty bug on older androids
                     // And ensure that services are discovered on the main thread
                     Handler(Looper.getMainLooper()).post {
+                        Logger.log("the device isn't bonding, let's try to discover services")
                         val couldDiscoverServices = gatt.discoverServices()
                         if (!couldDiscoverServices) {
                             Logger.log(
@@ -757,6 +760,8 @@ class NewBleScanner(
             return
         }
 
+        Logger.log("trying to connect to device gatt $uuid")
+
         connectDeviceGatt(
             bluetoothDevice,
             uuid,
@@ -771,6 +776,8 @@ class NewBleScanner(
     ) {
         _state.update { Connecting }
         try {
+            bluetoothLeScanner?.stopScan(scanCallback)
+            Logger.log("stopped scan before connecting to gatt")
             bluetoothDevice.connectGatt(
                 context,
                 true,
@@ -780,6 +787,7 @@ class NewBleScanner(
                 ),
                 BluetoothDevice.TRANSPORT_LE
             )
+            Logger.log("init gatt connection to $uuid")
         } catch (e: SecurityException) {
             Log.e(TAG, "missing BLUETOOTH_CONNECT permission", e)
             _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
