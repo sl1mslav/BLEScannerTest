@@ -38,6 +38,7 @@ import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Scanning
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
 import kotlinx.coroutines.delay
@@ -59,6 +60,7 @@ class NewBleScanner(
 ) : ScanCallback() {
 
     private val scannerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private var bleObserverJob: Job? = null
 
     private val _state = MutableStateFlow<NewBleScannerState>(NewBleScannerState.Idle)
     val state = _state.asStateFlow()
@@ -99,19 +101,10 @@ class NewBleScanner(
             return
         }
 
-        if (
-            devices.value.map { device -> device.uuid }.sortedDescending() ==
-            cachedDevices.map { device -> device.uuid }.sortedDescending()
-        ) {
-            Logger.log("skipping scan - scanning for same devices is in progress")
-            return
-        }
-
         Logger.log("start scanning for devices ${cachedDevices.joinToString { it.uuid }}")
         devices.update { cachedDevices }
 
         observeBleAvailability()
-        startScanningForDevices(cachedDevices)
     }
 
     fun stop() {
@@ -120,7 +113,9 @@ class NewBleScanner(
     }
 
     private fun observeBleAvailability() {
-        bleAvailability.onEach { bleState ->
+        if (bleObserverJob?.isActive == true)
+            return
+        bleObserverJob = bleAvailability.onEach { bleState ->
             when {
                 !bleState.isBluetoothEnabled && !bleState.isLocationEnabled -> {
                     _state.update {
@@ -351,7 +346,6 @@ class NewBleScanner(
                         delay(TOO_FREQUENT_SCAN_COOLDOWN)
                         Logger.log("cooldown passed, restarting the scan")
                         observeBleAvailability()
-                        restartScan()
                     }
                 }
 
@@ -376,6 +370,8 @@ class NewBleScanner(
         private val uuid: String,
         private val initialRssi: Int
     ) : BluetoothGattCallback() {
+
+        private var wasDoorOpened = false
 
         override fun onConnectionStateChange(gatt: BluetoothGatt, status: Int, newState: Int) {
             super.onConnectionStateChange(gatt, status, newState)
@@ -488,7 +484,7 @@ class NewBleScanner(
             when (status) {
                 BluetoothGatt.GATT_SUCCESS -> {
                     Logger.log("successfully opened door")
-                    // todo relay info about door being open...?
+                    wasDoorOpened = true
                 }
 
                 BluetoothGatt.GATT_WRITE_NOT_PERMITTED -> {
@@ -506,7 +502,7 @@ class NewBleScanner(
             Logger.log("newRssi: $rssi")
             _state.update { NewBleScannerState.Connected(uuid, rssi) }
             currentDeviceFromGatt(gatt)?.let { device ->
-                if (rssi > device.preferredRssi) {
+                if (rssi > device.preferredRssi && !wasDoorOpened) {
                     Logger.log("sending open signal")
                     sendOpenSignal(gatt, device)
                 }
@@ -742,20 +738,12 @@ class NewBleScanner(
         rssi: Int,
         bluetoothDevice: BluetoothDevice
     ) {
-        val foundDevice = devices.value.firstOrNull { device -> device.uuid == uuid } ?: run {
-            Logger.log("could not find device with uuid = $uuid")
-            return
-        }
-
         if (isBusy()) {
             Logger.log("could not connect to device: scanner is busy.")
             return
         }
 
-        // Here I can add logic for connecting to a GATT server in advance. That would require
-        // checking for rssi later, right before trying to open the device.
-        // Some kind of CONNECTION_THRESHOLD constant, perhaps?
-        if (rssi < foundDevice.preferredRssi) {
+        if (rssi < CONNECTION_THRESHOLD_RSSI) {
             Logger.log("won't connect to device $uuid: signal too weak")
             return
         }
@@ -821,6 +809,8 @@ class NewBleScanner(
 
         const val BLE_DEFAULT_CHARACTERISTIC_UUID = "0000f401-0000-1000-8000-00805f9b34fb"
         const val BLE_DEFAULT_NOTIFICATION_UUID = "0000f402-0000-1000-8000-00805f9b34fb"
+
+        const val CONNECTION_THRESHOLD_RSSI = -75
 
         // UUID mask to only search for 16 bit UUIDs
         const val SERVICE_UUID_MASK: String = "FFFFFFFF-FFFF-FFFF-FFFF-ffffffffffff"
