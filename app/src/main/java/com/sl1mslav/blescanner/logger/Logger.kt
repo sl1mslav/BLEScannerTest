@@ -74,8 +74,8 @@ object Logger {
         val lines = bufferedReader.readLines()
         bufferedReader.close()
 
-        if (lines.size > 700) {
-            logFile?.writeText(lines.drop(lines.size - 700).joinToString("\n"))
+        if (lines.size > 3000) {
+            logFile?.writeText(lines.drop(lines.size - 100).joinToString("\n"))
         }
 
         bufferedWriter.write("\n" + SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date().time) + "\t" + text)
