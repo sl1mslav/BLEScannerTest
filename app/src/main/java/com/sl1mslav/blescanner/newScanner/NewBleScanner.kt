@@ -75,7 +75,7 @@ class NewBleScanner(
 
     private val bleAvailability = BleAvailabilityObserver
         .getInstance(context)
-        .bleAvailability // todo this restarts scan even on first collection! think about it.
+        .bleAvailability
 
     private val bluetoothManager by lazy {
         ContextCompat.getSystemService(
