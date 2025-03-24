@@ -31,8 +31,8 @@ import com.sl1mslav.blescanner.blePermissions.collectRequiredPermissions
 import com.sl1mslav.blescanner.logger.Logger
 import com.sl1mslav.blescanner.scanner.BleScannerService
 import com.sl1mslav.blescanner.scanner.model.BleDevice
-import com.sl1mslav.blescanner.screens.BlePermission
-import com.sl1mslav.blescanner.screens.MainScreen
+import com.sl1mslav.blescanner.screens.main.BlePermission
+import com.sl1mslav.blescanner.screens.main.MainScreen
 import com.sl1mslav.blescanner.ui.theme.BLEscannerTheme
 import java.io.File
 import java.util.Locale

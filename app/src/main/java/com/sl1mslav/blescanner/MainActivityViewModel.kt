@@ -1,18 +1,15 @@
 package com.sl1mslav.blescanner
 
-import android.util.Log
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.sl1mslav.blescanner.bleAvailability.BleAvailabilityObserver
-import com.sl1mslav.blescanner.scanner.BleScanner
-import com.sl1mslav.blescanner.screens.BlePermission
-import com.sl1mslav.blescanner.screens.MainScreenState
+import com.sl1mslav.blescanner.screens.main.BlePermission
+import com.sl1mslav.blescanner.screens.main.MainScreenState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.update
 
 class MainActivityViewModel(
     availabilityTracker: BleAvailabilityObserver,

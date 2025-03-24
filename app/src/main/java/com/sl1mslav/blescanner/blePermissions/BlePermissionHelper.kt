@@ -1,6 +1,5 @@
 package com.sl1mslav.blescanner.blePermissions
 
-import android.Manifest
 import android.Manifest.permission.ACCESS_BACKGROUND_LOCATION
 import android.Manifest.permission.ACCESS_COARSE_LOCATION
 import android.Manifest.permission.ACCESS_FINE_LOCATION
@@ -12,7 +11,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
-import com.sl1mslav.blescanner.screens.BlePermission
+import com.sl1mslav.blescanner.screens.main.BlePermission
 
 fun collectRequiredPermissions(context: Context): List<BlePermission> {
     return buildList {

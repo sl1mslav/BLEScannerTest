@@ -1,4 +1,4 @@
-package com.sl1mslav.blescanner.screens
+package com.sl1mslav.blescanner.screens.main
 
 import android.Manifest
 import android.annotation.SuppressLint
