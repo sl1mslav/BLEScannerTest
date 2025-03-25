@@ -113,8 +113,11 @@ class NewBleScanner(
     }
 
     private fun observeBleAvailability() {
-        if (bleObserverJob?.isActive == true)
+        if (bleObserverJob?.isActive == true) {
+            Logger.log("bleObserverJob is active; returning")
             return
+        }
+        Logger.log("Launching a new bleObserverJob")
         bleObserverJob = bleAvailability.onEach { bleState ->
             when {
                 !bleState.isBluetoothEnabled && !bleState.isLocationEnabled -> {
