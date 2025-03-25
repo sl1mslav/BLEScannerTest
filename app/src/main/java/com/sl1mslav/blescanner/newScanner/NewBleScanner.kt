@@ -103,11 +103,14 @@ class NewBleScanner(
 
         Logger.log("start scanning for devices ${cachedDevices.joinToString { it.uuid }}")
         devices.update { cachedDevices }
-
+        Logger.log("observing BLE availability")
         observeBleAvailability()
+        Logger.log("trying to start a device scan")
+        startScanningForDevices(devices.value)
     }
 
     fun stop() {
+        Logger.log("stopping scanner")
         stopScanning()
         scannerScope.coroutineContext.cancelChildren()
     }
@@ -117,7 +120,7 @@ class NewBleScanner(
             Logger.log("bleObserverJob is active; returning")
             return
         }
-        Logger.log("Launching a new bleObserverJob")
+        Logger.log("launching a new bleObserverJob")
         bleObserverJob = bleAvailability.onEach { bleState ->
             when {
                 !bleState.isBluetoothEnabled && !bleState.isLocationEnabled -> {
@@ -159,6 +162,7 @@ class NewBleScanner(
             return
         }
         val shouldTryAgain = try {
+            Logger.log("building scan settings")
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
                 .build()
@@ -198,6 +202,7 @@ class NewBleScanner(
     }
 
     private fun stopScanning() {
+        Logger.log("trying to stop scan and close gatt")
         try {
             bluetoothLeScanner?.stopScan(scanCallback)
         } catch (e: SecurityException) {
@@ -229,6 +234,7 @@ class NewBleScanner(
     private fun createSearchFiltersForScanning(
         devices: List<BleDevice>
     ): List<ScanFilter> {
+        Logger.log("creating scan filter")
         return devices.map { device ->
             ScanFilter.Builder().setServiceUuid(
                 ParcelUuid.fromString(device.uuid),
@@ -244,6 +250,7 @@ class NewBleScanner(
     ) = object : BroadcastReceiver() {
         override fun onReceive(c: Context?, intent: Intent?) {
             if (intent?.action == BluetoothDevice.ACTION_BOND_STATE_CHANGED) {
+                Logger.log("received bond state changed action")
                 val receivedDevice = intent.parcelableExtraCompat<BluetoothDevice>(
                     key = BluetoothDevice.EXTRA_DEVICE
                 )
@@ -251,6 +258,7 @@ class NewBleScanner(
                     BluetoothDevice.EXTRA_PREVIOUS_BOND_STATE,
                     BluetoothDevice.BOND_NONE
                 )
+                Logger.log("bond state is $bondState")
                 if (
                     receivedDevice != null &&
                     receivedDevice.address == device.address &&
@@ -275,6 +283,7 @@ class NewBleScanner(
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
+            Logger.log("received a scan result")
             val scanResult = result ?: run {
                 Logger.log("scan result is null")
                 return
@@ -516,6 +525,7 @@ class NewBleScanner(
 
         private fun handleSuccessfulConnection(gatt: BluetoothGatt) {
             try {
+                Logger.log("let's check device bond state")
                 if (gatt.device.bondState != BluetoothDevice.BOND_BONDING) {
                     bluetoothGatt = gatt
                     _state.update { NewBleScannerState.Connected(uuid, initialRssi) }
@@ -626,6 +636,7 @@ class NewBleScanner(
         }
 
         private fun handleDiscoveredServices(gatt: BluetoothGatt) {
+            Logger.log("unpacking services")
             val characteristics = gatt.services?.flatMap { service ->
                 service?.characteristics?.filterNotNull() ?: emptyList()
             } ?: run {
@@ -637,32 +648,38 @@ class NewBleScanner(
         }
 
         private fun parseAndSaveCharacteristics(characteristics: List<BluetoothGattCharacteristic>) {
+            Logger.log("parsing services")
             characteristics.forEach { characteristic ->
                 // When we find a characteristic for notifications, we save it to subscribe to its
                 // updates
                 if (characteristic.uuid == UUID.fromString(BLE_DEFAULT_CHARACTERISTIC_UUID)) {
+                    Logger.log("found needed char!")
                     bluetoothCharacteristic = characteristic
                 }
 
                 // When we find a characteristic for sending open signals, we save it for later use
                 if (characteristic.uuid == UUID.fromString(BLE_DEFAULT_NOTIFICATION_UUID)) {
+                    Logger.log("found needed notification char!")
                     bluetoothCharacteristicNotification = characteristic
                 }
             }
         }
 
         private fun enableNotifications(gatt: BluetoothGatt) {
+            Logger.log("enabling notifications")
             // Subscribe to characteristic's updates
             if (bluetoothCharacteristicNotification == null) {
                 Logger.log("couldn't enable notifications as char is null")
                 return
             }
             try {
+                Logger.log("setting char notification notifications")
                 gatt.setCharacteristicNotification(
                     bluetoothCharacteristicNotification,
                     true
                 )
                 bluetoothCharacteristicNotification?.descriptors?.firstOrNull()?.let { descriptor ->
+                    Logger.log("writing descriptor")
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
                         bluetoothGatt?.writeDescriptor(
                             descriptor,
@@ -676,6 +693,7 @@ class NewBleScanner(
                     }
                 }
             } catch (e: SecurityException) {
+                Logger.log("couldn't write descriptor: no CONNECT permission", e)
                 _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
@@ -726,8 +744,10 @@ class NewBleScanner(
         gatt: BluetoothGatt,
         transform: (BleDevice) -> BleDevice
     ) {
+        Logger.log("updating current device")
         val currentDevice = currentDeviceFromGatt(gatt) ?: return
         val updatedDevice = transform(currentDevice)
+        Logger.log("updating current device successfully")
         devices.update { devices ->
             devices - currentDevice + updatedDevice
         }

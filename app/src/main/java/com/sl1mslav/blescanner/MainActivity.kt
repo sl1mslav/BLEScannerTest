@@ -63,9 +63,12 @@ class MainActivity : ComponentActivity() {
                 key = "g$key".toByteArray(),
                 bleCode = bleCode.toByteArray()
             )
+            Logger.log("start device scan from UI")
             scannerService?.startScanningForDevices(
                 listOf(hardCodedDevice)
-            )
+            ) ?: run {
+                Logger.log("can't start device scan from UI: service is null")
+            }
         }
 
         override fun onServiceDisconnected(className: ComponentName) {
