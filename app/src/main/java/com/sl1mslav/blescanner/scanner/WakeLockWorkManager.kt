@@ -6,12 +6,10 @@ import android.os.Build.MANUFACTURER
 import android.os.PowerManager
 import android.util.Log
 import androidx.work.PeriodicWorkRequest
-import androidx.work.WorkInfo
 import androidx.work.WorkManager
 import androidx.work.Worker
 import androidx.work.WorkerParameters
 import com.sl1mslav.blescanner.logger.Logger
-import kotlinx.coroutines.flow.Flow
 import java.util.concurrent.TimeUnit
 
 class WakeLockWorkManager(
@@ -24,11 +22,10 @@ class WakeLockWorkManager(
         repeatIntervalTimeUnit = TimeUnit.MINUTES
     ).build()
 
-    fun start(): Flow<WorkInfo?> {
+    fun start() {
         Logger.log("start work")
         workManager.cancelWorkById(periodicWorkRequest.id)
         workManager.enqueue(periodicWorkRequest)
-        return workManager.getWorkInfoByIdFlow(periodicWorkRequest.id)
     }
 
     fun stop() {
