@@ -55,7 +55,7 @@ import java.util.UUID
 // TODO look into enqueueing ALL of the launched operations
 // REPO: https://github.com/PunchThrough/ble-starter-android
 
-class NewBleScanner(
+class BleScanner(
     private val context: Context
 ) : ScanCallback() {
 
@@ -103,9 +103,7 @@ class NewBleScanner(
 
         Logger.log("start scanning for devices ${cachedDevices.joinToString { it.uuid }}")
         devices.update { cachedDevices }
-        Logger.log("observing BLE availability")
         observeBleAvailability()
-        Logger.log("trying to start a device scan")
         startScanningForDevices(devices.value)
     }
 
@@ -171,7 +169,6 @@ class NewBleScanner(
             return
         }
         val shouldTryAgain = try {
-            Logger.log("building scan settings")
             val scanSettings = ScanSettings.Builder()
                 .setScanMode(ScanSettings.SCAN_MODE_BALANCED)
                 .build()
@@ -292,7 +289,6 @@ class NewBleScanner(
     private val scanCallback = object : ScanCallback() {
         override fun onScanResult(callbackType: Int, result: ScanResult?) {
             super.onScanResult(callbackType, result)
-            Logger.log("received a scan result")
             val scanResult = result ?: run {
                 Logger.log("scan result is null")
                 return
@@ -322,8 +318,6 @@ class NewBleScanner(
             when (errorCode) {
                 SCAN_FAILED_ALREADY_STARTED -> {
                     Logger.log("scan was already started with same settings")
-                    // Reflecting this in our state just in case
-                    _state.update { Scanning }
                 }
 
                 SCAN_FAILED_APPLICATION_REGISTRATION_FAILED, SCAN_FAILED_OUT_OF_HARDWARE_RESOURCES -> {
@@ -486,7 +480,9 @@ class NewBleScanner(
 
             try {
                 Logger.log("reading remote rssi")
-                gatt.readRemoteRssi()
+                if (gatt.readRemoteRssi()) {
+                    Logger.log("could not successfully request rssi!")
+                }
             } catch (e: SecurityException) {
                 Logger.log(
                     "could not read remote rssi: no CONNECT permission",
@@ -601,10 +597,12 @@ class NewBleScanner(
         }
 
         private fun disconnectGatt(gatt: BluetoothGatt) {
+            Logger.log("disconnecting gatt")
             bluetoothGatt = null
             try {
                 gatt.close()
             } catch (e: SecurityException) {
+                Logger.log("could not close gatt: no CONNECT permission")
                 _state.update { Failed(reason = Reason.NO_CONNECT_PERMISSION) }
             }
         }
@@ -675,7 +673,6 @@ class NewBleScanner(
         }
 
         private fun enableNotifications(gatt: BluetoothGatt) {
-            Logger.log("enabling notifications")
             // Subscribe to characteristic's updates
             if (bluetoothCharacteristicNotification == null) {
                 Logger.log("couldn't enable notifications as char is null")
@@ -753,10 +750,8 @@ class NewBleScanner(
         gatt: BluetoothGatt,
         transform: (BleDevice) -> BleDevice
     ) {
-        Logger.log("updating current device")
         val currentDevice = currentDeviceFromGatt(gatt) ?: return
         val updatedDevice = transform(currentDevice)
-        Logger.log("updating current device successfully")
         devices.update { devices ->
             devices - currentDevice + updatedDevice
         }
