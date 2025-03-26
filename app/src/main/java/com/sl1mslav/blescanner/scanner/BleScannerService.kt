@@ -20,10 +20,12 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancelChildren
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlin.time.Duration.Companion.minutes
 
-class BleScannerService: Service() {
+class BleScannerService : Service() {
     // Этот скоуп будет жить, пока жив сервис
     private val scannerScope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -40,7 +42,7 @@ class BleScannerService: Service() {
     // ----- Для того, чтобы UI мог вызывать публичные методы нашего сервиса ----- //
     private val binder = LeScannerBinder()
 
-    inner class LeScannerBinder: Binder() {
+    inner class LeScannerBinder : Binder() {
         fun getService(): BleScannerService = this@BleScannerService
     }
 
@@ -48,9 +50,6 @@ class BleScannerService: Service() {
         return binder
     }
     // -------------------------------------------------------------------------- //
-
-
-
 
 
     // --------------------------- Инициализация сервиса -------------------------- //
@@ -93,33 +92,29 @@ class BleScannerService: Service() {
     // ---------------------------------------------------------------------------- //
 
 
-
-
-
     // -------------------------  Главная работа сервиса -------------------------- //
 
     override fun onCreate() {
         Logger.log("onCreate")
         super.onCreate()
-        wakeLockWorkManager.start()
-        // startWakeLockWorker() todo возможно этот рестарт всё-таки нужен,  но пока уберём
+        startWakeLockWorker()
         observeBluetoothScannerState()
         scanForKnownDevices()
     }
 
     /**
-     * Перезапускает Bluetooth сканнер, если с прошлого сигнала воркера прошло больше 5 минут
+     * Перезапускает Bluetooth сканнер, если с прошлого сигнала воркера прошло больше 1 часа
      */
     @OptIn(FlowPreview::class)
     private fun startWakeLockWorker() {
-        /*Log.d(TAG, "startWakeLockWorker")
         wakeLockWorkManager
             .start()
-            .debounce(5.minutes)
+            .debounce(30.minutes)
             .onEach {
-                Log.d(TAG, "startWakeLockWorker: receive workInfo $it")
-                bleScanner.restart()
-            }.launchIn(scannerScope) // убьётся с сервисом, не нужно проверять isAlive*/
+                Logger.log("receive workInfo $it")
+                bleScanner.stop()
+                bleScanner.start()
+            }.launchIn(scannerScope)
     }
 
     fun startScanningForDevices(
@@ -134,9 +129,6 @@ class BleScannerService: Service() {
     }
 
     // ---------------------------------------------------------------------------- //
-
-
-
 
 
     // -------------------- Реакции на состояние сканнера --------------------- //
@@ -154,22 +146,27 @@ class BleScannerService: Service() {
                 notificationTitle = "Запускаем сканнер"
                 notificationText = "Скоро он начнёт считывать сигналы"
             }
+
             NewBleScannerState.Scanning -> {
                 notificationTitle = "Сканируем"
                 notificationText = "Поскорее бы открыть что-нибудь"
             }
+
             NewBleScannerState.Connecting -> {
                 notificationTitle = "Подключаемся"
                 notificationText = "Пытаемся соединиться с устройством"
             }
+
             NewBleScannerState.Reconnecting -> {
                 notificationTitle = "Переподключаемся"
                 notificationText = "Создаём пару с устройством"
             }
+
             is NewBleScannerState.Connected -> {
                 notificationTitle = "Пытаемся открыть домофон"
                 notificationText = "Текущий RSSI: ${state.rssi}"
             }
+
             is NewBleScannerState.Failed -> {
                 notificationTitle = "Произошла ошибка"
                 notificationText = when (state.reason) {
@@ -199,9 +196,6 @@ class BleScannerService: Service() {
     }
 
     // ---------------------------------------------------------------------------- //
-
-
-
 
 
     // ----------------------------- Очистка сервиса ------------------------------ //
