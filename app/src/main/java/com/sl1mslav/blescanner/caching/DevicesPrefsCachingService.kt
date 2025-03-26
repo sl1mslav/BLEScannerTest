@@ -2,7 +2,6 @@ package com.sl1mslav.blescanner.caching
 
 import android.content.Context
 import com.google.gson.GsonBuilder
-import com.sl1mslav.blescanner.scanner.BleScanner
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 
 class DevicesPrefsCachingService(context: Context) {
