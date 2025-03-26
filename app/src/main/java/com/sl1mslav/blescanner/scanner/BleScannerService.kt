@@ -10,30 +10,30 @@ import android.os.IBinder
 import androidx.core.app.ServiceCompat
 import com.sl1mslav.blescanner.caching.DevicesPrefsCachingService
 import com.sl1mslav.blescanner.logger.Logger
-import com.sl1mslav.blescanner.newScanner.NewBleScanner
+import com.sl1mslav.blescanner.newScanner.BleScanner
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState
 import com.sl1mslav.blescanner.newScanner.NewBleScannerState.Failed.Reason
 import com.sl1mslav.blescanner.notifications.buildBleServiceNotification
 import com.sl1mslav.blescanner.scanner.model.BleDevice
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.FlowPreview
-import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.launch
 import kotlin.time.Duration.Companion.minutes
 
 class BleScannerService : Service() {
     // Этот скоуп будет жить, пока жив сервис
-    private val scannerScope = CoroutineScope(Dispatchers.Main + Job())
+    private val scannerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     // Будит телефон с интервалом в 15 минут
     private val wakeLockWorkManager = WakeLockWorkManager(this)
 
     // Сканнер BLE устройств
-    private val bleScanner by lazy { NewBleScanner(context = this) }
+    private val bleScanner by lazy { BleScanner(context = this) }
     val bleScannerState get() = bleScanner.state
 
     // Кэширование устройств
@@ -100,20 +100,7 @@ class BleScannerService : Service() {
         startWakeLockWorker()
         observeBluetoothScannerState()
         scanForKnownDevices()
-    }
-
-    /**
-     * Перезапускает Bluetooth сканнер, если с прошлого сигнала воркера прошло больше 1 часа
-     */
-    @OptIn(FlowPreview::class)
-    private fun startWakeLockWorker() {
-        wakeLockWorkManager
-            .start()
-            .debounce(30.minutes)
-            .onEach {
-                Logger.log("receive workInfo $it")
-                bleScanner.restartIfNotBusy()
-            }.launchIn(scannerScope)
+        launchPeriodicScanRestarts()
     }
 
     fun startScanningForDevices(
@@ -121,6 +108,19 @@ class BleScannerService : Service() {
     ) {
         deviceCachingService.saveDevices(devices)
         scanForKnownDevices()
+    }
+
+    private fun launchPeriodicScanRestarts() {
+        scannerScope.launch {
+            while (true) {
+                delay(30.minutes)
+                bleScanner.restartIfNotBusy()
+            }
+        }
+    }
+
+    private fun startWakeLockWorker() {
+        wakeLockWorkManager.start()
     }
 
     private fun scanForKnownDevices() {
