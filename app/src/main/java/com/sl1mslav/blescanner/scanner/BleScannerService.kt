@@ -112,8 +112,7 @@ class BleScannerService : Service() {
             .debounce(30.minutes)
             .onEach {
                 Logger.log("receive workInfo $it")
-                bleScanner.stop()
-                bleScanner.start()
+                bleScanner.restartIfNotBusy()
             }.launchIn(scannerScope)
     }
 

@@ -115,6 +115,15 @@ class NewBleScanner(
         scannerScope.coroutineContext.cancelChildren()
     }
 
+    fun restartIfNotBusy() {
+        if (isBusy()) {
+            Logger.log("can't restart scan; scanner is busy.")
+            return
+        }
+        stop()
+        start()
+    }
+
     private fun observeBleAvailability() {
         if (bleObserverJob?.isActive == true) {
             Logger.log("bleObserverJob is active; returning")
