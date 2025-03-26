@@ -14,7 +14,7 @@ import java.util.concurrent.Executors
 object Logger {
     private var logFile: File? = null
 
-    private val logExecutor = Executors.newCachedThreadPool()
+    private val logExecutor = Executors.newSingleThreadExecutor()
 
     fun init(context: Context) {
         logFile = File(
@@ -74,11 +74,11 @@ object Logger {
         val lines = bufferedReader.readLines()
         bufferedReader.close()
 
-        if (lines.size > 3000) {
+        if (lines.size > 10000) {
             logFile?.writeText(lines.drop(lines.size - 100).joinToString("\n"))
         }
 
-        bufferedWriter.write("\n" + SimpleDateFormat("dd/MM/yyyy HH:mm:ss").format(Date().time) + "\t" + text)
+        bufferedWriter.write("\n" + SimpleDateFormat("dd/MM/yyyy HH:mm:ss.SSS").format(Date().time) + "\t" + text)
 
         bufferedWriter.close()
         fileWriter.close()
