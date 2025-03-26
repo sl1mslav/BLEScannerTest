@@ -800,7 +800,7 @@ class NewBleScanner(
             Logger.log("stopped scan before connecting to gatt")
             bluetoothDevice.connectGatt(
                 context,
-                true,
+                false,
                 DeviceBluetoothGattCallback(
                     uuid = uuid,
                     initialRssi = rssi
