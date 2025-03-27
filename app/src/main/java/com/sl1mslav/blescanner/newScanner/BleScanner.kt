@@ -172,12 +172,6 @@ class BleScanner(
                 .build()
             Logger.log("scheduling scan")
             bluetoothLeScanner?.let { scanner ->
-                try {
-                    Logger.log("stopping previous scan if there was one")
-                    scanner.stopScan(scanCallback)
-                } catch (e: SecurityException) {
-                    Logger.log("could not stop previous scan - no SCAN permission")
-                }
                 BleSafeScanScheduler.scheduleScan(
                     scanner = scanner,
                     filters = createSearchFiltersForScanning(devices),
@@ -819,6 +813,5 @@ class BleScanner(
         const val SERVICE_UUID_MASK: String = "FFFFFFFF-FFFF-FFFF-FFFF-ffffffffffff"
         val PARCEL_UUID_MASK: ParcelUuid = ParcelUuid.fromString(SERVICE_UUID_MASK)
 
-        const val TOO_FREQUENT_SCAN_COOLDOWN = 30_000L
     }
 }
