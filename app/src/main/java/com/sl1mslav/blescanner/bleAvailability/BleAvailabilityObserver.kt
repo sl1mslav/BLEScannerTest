@@ -14,13 +14,16 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.onEach
+import kotlinx.coroutines.flow.shareIn
 import kotlinx.coroutines.flow.update
 
+// todo эта хуйня Очень странно работает. Подумай над callbackFlow или вроде того.
 class BleAvailabilityObserver private constructor(private val context: Context) {
 
     private val trackerScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -41,6 +44,12 @@ class BleAvailabilityObserver private constructor(private val context: Context) 
      * отключает их как только пропадает последний подписчик.
      */
     val bleAvailability = _bleAvailability.asStateFlow()
+
+    val bleAvailabilitySharedFlow = _bleAvailability.shareIn(
+        trackerScope,
+        started = SharingStarted.Eagerly,
+        replay = 0
+    )
 
     private val receiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {

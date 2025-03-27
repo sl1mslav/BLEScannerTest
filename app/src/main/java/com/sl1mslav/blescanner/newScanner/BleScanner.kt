@@ -41,13 +41,11 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancelChildren
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.launchIn
 import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.update
-import kotlinx.coroutines.launch
 import java.util.UUID
 
 
@@ -75,7 +73,7 @@ class BleScanner(
 
     private val bleAvailability = BleAvailabilityObserver
         .getInstance(context)
-        .bleAvailability
+        .bleAvailabilitySharedFlow
 
     private val bluetoothManager by lazy {
         ContextCompat.getSystemService(
@@ -154,9 +152,7 @@ class BleScanner(
                 }
 
                 else -> {
-                    // Because we're collecting a StateFlow, we understand that data
-                    // has definitely changed since last value;
-                    // Since everything is ON now, we safely restart the scan.
+                    Logger.log("Bluetooth and location is ON - restarting scanner")
                     restartScan()
                 }
             }
@@ -334,34 +330,6 @@ class BleScanner(
                     _state.update { Failed(reason = Reason.FEATURE_NOT_SUPPORTED) }
                     // No point in restarting the scan here,
                     // only with a different bluetooth adapter maybe
-                }
-
-                SCAN_FAILED_SCANNING_TOO_FREQUENTLY -> {
-                    /*
-                        Пизда. Как мы вообще сюда попали?
-
-                        If your app exceeded this limit, the scan would appear to have started,
-                        but no scan results would be delivered to your callback body.
-                        After 30 seconds have elapsed, your app should
-                        call stopScan() followed by startScan(...) again
-                        to start receiving scan results — the old startScan(...) method call
-                        that resulted in the error doesn’t automatically start receiving
-                        scan results again once the 30-second cooldown timer is complete.
-                        Realistically, most apps won’t exceed this internal limit,
-                        but this is an error you should watch out for. Perhaps you should warn
-                        your users about whether your code or your users can potentially
-                        start and stop BLE scans repeatedly.
-                     */
-                    Logger.log("scanning too frequently!")
-                    _state.update { Failed(reason = Reason.SCANNING_TOO_FREQUENTLY) }
-                    stopScanning()
-                    scannerScope.coroutineContext.cancelChildren()
-                    scannerScope.launch {
-                        Logger.log("let's wait out the cooldown...")
-                        delay(TOO_FREQUENT_SCAN_COOLDOWN)
-                        Logger.log("cooldown passed, restarting the scan")
-                        observeBleAvailability()
-                    }
                 }
 
                 SCAN_FAILED_INTERNAL_ERROR -> {
