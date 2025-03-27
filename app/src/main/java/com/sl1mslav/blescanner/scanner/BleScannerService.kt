@@ -65,6 +65,7 @@ class BleScannerService : Service() {
     }
 
     override fun onDestroy() {
+        // todo this can be called by the system; look into this
         Logger.log("onDestroy")
         super.onDestroy()
         scannerScope.coroutineContext.cancelChildren()

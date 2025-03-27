@@ -101,6 +101,7 @@ class BleScanner(
 
         Logger.log("start scanning for devices ${cachedDevices.joinToString { it.uuid }}")
         devices.update { cachedDevices }
+
         observeBleAvailability()
         startScanningForDevices(devices.value)
     }
@@ -108,6 +109,7 @@ class BleScanner(
     fun stop() {
         Logger.log("stopping scanner")
         stopScanning()
+        devices.update { emptyList() }
         scannerScope.coroutineContext.cancelChildren()
     }
 
@@ -170,6 +172,12 @@ class BleScanner(
                 .build()
             Logger.log("scheduling scan")
             bluetoothLeScanner?.let { scanner ->
+                try {
+                    Logger.log("stopping previous scan if there was one")
+                    scanner.stopScan(scanCallback)
+                } catch (e: SecurityException) {
+                    Logger.log("could not stop previous scan - no SCAN permission")
+                }
                 BleSafeScanScheduler.scheduleScan(
                     scanner = scanner,
                     filters = createSearchFiltersForScanning(devices),
@@ -448,7 +456,7 @@ class BleScanner(
 
             try {
                 Logger.log("reading remote rssi")
-                if (gatt.readRemoteRssi()) {
+                if (!gatt.readRemoteRssi()) {
                     Logger.log("could not successfully request rssi!")
                 }
             } catch (e: SecurityException) {
