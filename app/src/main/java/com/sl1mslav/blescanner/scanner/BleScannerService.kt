@@ -61,6 +61,8 @@ class BleScannerService : Service() {
         wakeLockWorkManager.start()
         observeBluetoothScannerState()
         scanForKnownDevices()
+
+        // todo get rid of this?
         launchPeriodicScanRestarts()
     }
 
