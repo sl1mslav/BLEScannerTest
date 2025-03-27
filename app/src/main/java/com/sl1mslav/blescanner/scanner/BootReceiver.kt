@@ -10,7 +10,7 @@ class BootReceiver: BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
         try {
             Logger.log("received boot flag")
-            if (DevicesPrefsCachingService(context).getSavedDevices().isNotEmpty()) { // todo move receiver to service itself?
+            if (DevicesPrefsCachingService(context).getSavedDevices().isNotEmpty()) {
                 context.startService(Intent(context, BleScannerService::class.java))
             }
         } catch (e: Exception) {

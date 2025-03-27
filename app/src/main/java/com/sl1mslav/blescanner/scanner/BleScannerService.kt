@@ -70,6 +70,7 @@ class BleScannerService : Service() {
         scannerScope.coroutineContext.cancelChildren()
         wakeLockWorkManager.stop()
         bleScanner.stop()
+        deviceCachingService.saveDevices(emptyList())
     }
 
     private fun startServiceAsFGS() {
