@@ -39,7 +39,6 @@ class BleScannerService : Service() {
     // Кэширование устройств
     private val deviceCachingService by lazy { DevicesPrefsCachingService(context = this) }
 
-    // ----- Для того, чтобы UI мог вызывать публичные методы нашего сервиса ----- //
     private val binder = LeScannerBinder()
 
     inner class LeScannerBinder : Binder() {
@@ -49,15 +48,28 @@ class BleScannerService : Service() {
     override fun onBind(intent: Intent?): IBinder {
         return binder
     }
-    // -------------------------------------------------------------------------- //
-
-
-    // --------------------------- Инициализация сервиса -------------------------- //
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         Logger.log("onStartCommand")
         startServiceAsFGS()
         return super.onStartCommand(intent, flags, startId)
+    }
+
+    override fun onCreate() {
+        Logger.log("onCreate")
+        super.onCreate()
+        wakeLockWorkManager.start()
+        observeBluetoothScannerState()
+        scanForKnownDevices()
+        launchPeriodicScanRestarts()
+    }
+
+    override fun onDestroy() {
+        Logger.log("onDestroy")
+        super.onDestroy()
+        scannerScope.coroutineContext.cancelChildren()
+        wakeLockWorkManager.stop()
+        bleScanner.stop()
     }
 
     private fun startServiceAsFGS() {
@@ -89,19 +101,6 @@ class BleScannerService : Service() {
             )
         }
     }
-    // ---------------------------------------------------------------------------- //
-
-
-    // -------------------------  Главная работа сервиса -------------------------- //
-
-    override fun onCreate() {
-        Logger.log("onCreate")
-        super.onCreate()
-        startWakeLockWorker()
-        observeBluetoothScannerState()
-        scanForKnownDevices()
-        launchPeriodicScanRestarts()
-    }
 
     fun startScanningForDevices(
         devices: List<BleDevice>
@@ -119,18 +118,9 @@ class BleScannerService : Service() {
         }
     }
 
-    private fun startWakeLockWorker() {
-        wakeLockWorkManager.start()
-    }
-
     private fun scanForKnownDevices() {
         bleScanner.start()
     }
-
-    // ---------------------------------------------------------------------------- //
-
-
-    // -------------------- Реакции на состояние сканнера --------------------- //
 
     private fun observeBluetoothScannerState() {
         bleScannerState.onEach(::handleScannerState).launchIn(scannerScope)
@@ -193,21 +183,6 @@ class BleScannerService : Service() {
             )
         )
     }
-
-    // ---------------------------------------------------------------------------- //
-
-
-    // ----------------------------- Очистка сервиса ------------------------------ //
-
-    override fun onDestroy() {
-        Logger.log("onDestroy")
-        super.onDestroy()
-        scannerScope.coroutineContext.cancelChildren()
-        wakeLockWorkManager.stop()
-        bleScanner.stop()
-    }
-
-    // ---------------------------------------------------------------------------- //
 
     companion object {
         private const val SERVICE_NOTIFICATION_ID = 1337
