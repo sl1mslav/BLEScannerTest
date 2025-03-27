@@ -550,7 +550,7 @@ class BleScanner(
                     _state.update { Failed(reason = Reason.CONNECTION_CONGESTED) }
                 }
 
-                GATT_CONNECTION_TIMEOUT -> {
+                GATT_CONNECTION_TIMEOUT, GATT_BLUETOOTH_TIMEOUT -> {
                     Logger.log("connection timed out")
                     _state.update { Failed(reason = Reason.CONNECTION_FAILED) }
                 }
@@ -803,6 +803,7 @@ class BleScanner(
         const val TAG = "NewBleScanner"
 
         const val GATT_FIRMWARE_ERROR = 0x85
+        const val GATT_BLUETOOTH_TIMEOUT = 8
 
         const val BLE_DEFAULT_CHARACTERISTIC_UUID = "0000f401-0000-1000-8000-00805f9b34fb"
         const val BLE_DEFAULT_NOTIFICATION_UUID = "0000f402-0000-1000-8000-00805f9b34fb"
