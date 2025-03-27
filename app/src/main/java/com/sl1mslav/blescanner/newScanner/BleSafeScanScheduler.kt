@@ -37,6 +37,8 @@ object BleSafeScanScheduler {
                 operationsLaunched[operationsCurrentlyLaunched - SCANS_PER_PERIOD].join()
             }
             try {
+                Logger.log("stopping scan before scheduling a new one")
+                scanner.stopScan(callback)
                 Logger.log("starting scan!")
                 scanner.startScan(
                     filters,
